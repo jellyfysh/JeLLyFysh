@@ -1,0 +1,83 @@
+## Core latex/pdflatex auxiliary files:
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cb
+*.cb2
+*.tex~
+
+## Intermediate documents:
+*.swp
+*.backup
+*.dvi
+*-converted-to.*
+
+## Image files:
+#*.ps
+#*.eps
+*.pdf
+
+## Bibliography auxiliary files (bibtex/biblatex/biber):
+*.bbl
+*.bcf
+*.blg
+*-blx.aux
+*-blx.bib
+*.brf
+*.run.xml
+
+## Build tool auxiliary files:
+*.fdb_latexmk
+*.synctex
+*.synctex(busy)
+*.synctex.gz
+*.synctex.gz(busy)
+*.pdfsync
+
+## Python temp files:
+*.pyc
+*__pycache__
+
+## Mac compilation file:
+*.DS_Store
+
+## C++ compilation and execution files:
+*.o
+*.nbi
+*.nbc
+*.el
+*.gz
+*.plist
+*.w
+
+## Sphinx documentation files:
+docs/build/*
+
+## PyCharm IDE files:
+.idea/
+
+## Output files
+*.dat
+*.tmp
+!Reference*.dat
+
+## Interpolation data file
+
+*InterpValues*.dat
+
+## Local folder
+src/local_test
+*.local.*
+*.jpg
+*.dcd
+*.pdb
+*.nc
+
+#mac virutal environment created by pycharm
+src/venv/
