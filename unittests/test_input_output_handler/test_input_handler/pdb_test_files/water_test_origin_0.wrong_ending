@@ -1,0 +1,48 @@
+# JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
+#
+# This file is part of JeLLyFysh.
+#
+# JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
+# If not, see <https://www.gnu.org/licenses/>.
+#
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
+# JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
+#
+TITLE     MDANALYSIS FRAME 0: RUN IDENTIFICATION HASH: 1c828853-c3c5-471b-94b4-48774c5cd84f
+CRYST1   10.261   10.261   10.261   0.00   0.00   0.00 P 1           1
+ATOM      1  H   HOH     1       7.859   5.311   0.879  1.00  0.00           H
+ATOM      2  O   HOH     1       8.663   5.863   1.139  1.00  0.00           O
+ATOM      3  H   HOH     1       8.794   6.035   2.135  1.00  0.00           H
+ATOM      4  H   HOH     2       9.969   1.519   9.446  1.00  0.00           H
+ATOM      5  O   HOH     2      10.068   1.315   0.160  1.00  0.00           O
+ATOM      6  H   HOH     2       0.059   1.032   0.408  1.00  0.00           H
+ATOM      7  H   HOH     3       2.429  10.081   0.100  1.00  0.00           H
+ATOM      8  O   HOH     3       1.747   0.149   0.744  1.00  0.00           O
+ATOM      9  H   HOH     3       1.959   1.120   0.832  1.00  0.00           H
+ATOM     10  H   HOH     4       4.283   8.790   0.340  1.00  0.00           H
+ATOM     11  O   HOH     4       4.247   9.615   9.967  1.00  0.00           O
+ATOM     12  H   HOH     4       5.174   9.737   9.530  1.00  0.00           H
+CONECT    1    2
+CONECT    2    1    3
+CONECT    3    2
+CONECT    4    5
+CONECT    5    4    6
+CONECT    6    5
+CONECT    7    8
+CONECT    8    7    9
+CONECT    9    8
+CONECT   10   11
+CONECT   11   10   12
+CONECT   12   11
+END

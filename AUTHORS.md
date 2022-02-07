@@ -2,6 +2,7 @@
 
 
 JeLLyFysh was originally written by the following team:
+
 - Philipp Höllmer
 - Liang Qin
 - Michael F. Faulkner
@@ -9,9 +10,10 @@ JeLLyFysh was originally written by the following team:
 - Werner Krauth
 
 
-JeLLyFysh is maintained by the JellyFysh organization with the help of the community (see https://github.com/jellyfysh).
+JeLLyFysh is maintained by the JellyFysh organization with the help of the community (see 
+[https://github.com/jellyfysh](https://github.com/jellyfysh)).
 
 
-All additional contributors authors will be listed in this file below in chronological order.
+All additional contributors will be listed in this file (below) in chronological order.
 
 ## Chronological list of additional contributors

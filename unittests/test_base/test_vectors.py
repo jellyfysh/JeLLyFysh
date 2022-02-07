@@ -1,12 +1,12 @@
 # JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
-# Copyright (C) 2019 The JeLLyFysh organization
-# (see the AUTHORS file for the full list of authors)
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
 #
 # This file is part of JeLLyFysh.
 #
 # JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-# License as published by the Free Software Foundation, either > version 3 of the License, or (at your option) any
-# later version.
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
 # JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
@@ -14,17 +14,32 @@
 # You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
 # If not, see <https://www.gnu.org/licenses/>.
 #
-# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2019] in References.bib):
-# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, Werner Krauth
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
 # JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
-# arXiv e-prints: 1907.12502 (2019), https://arxiv.org/abs/1907.12502
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
+import os
+import sys
 import math
 from unittest import TestCase, main
-from base import vectors
+from jellyfysh.base import vectors
+_unittest_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+_unittest_directory_added_to_path = False
+if _unittest_directory not in sys.path:
+    sys.path.append(_unittest_directory)
+    _unittest_directory_added_to_path = True
+# noinspection PyUnresolvedReferences
+from expanded_test_case import ExpandedTestCase
 
 
-class TestVectors(TestCase):
+def tearDownModule():
+    if _unittest_directory_added_to_path:
+        sys.path.remove(_unittest_directory)
+
+
+# Inherit explicitly from TestCase class for Test functionality in PyCharm.
+class TestVectors(ExpandedTestCase, TestCase):
     def test_norm(self):
         self.assertAlmostEqual(vectors.norm([0.1, 0.2, 0.3]), 0.3741657386773941, places=13)
         self.assertAlmostEqual(vectors.norm([0.1, 0.0, 0.0]), 0.1, places=13)
@@ -65,18 +80,22 @@ class TestVectors(TestCase):
             vectors.dot([1, 2], [1])
 
     def test_normalize(self):
-        self.assertEqual(vectors.normalize([1, 2, 3]), [1 / 14 ** 0.5, 2 / 14 ** 0.5, 3 / 14 ** 0.5])
-        self.assertEqual(vectors.normalize([4, -3]), [4 / 25 ** 0.5, -3 / 25 ** 0.5])
-        self.assertEqual(vectors.normalize([2]), [1])
-        self.assertEqual(vectors.normalize([2], 2), [2])
-        self.assertEqual(vectors.normalize([-1, -2], 2.5), [-1 / 5 ** 0.5 * 2.5, -2 / 5 ** 0.5 * 2.5])
-        self.assertEqual(vectors.normalize([1, 1, 1], 0.5),
-                         [1 / 3 ** 0.5 * 0.5, 1 / 3 ** 0.5 * 0.5, 1 / 3 ** 0.5 * 0.5])
+        self.assertAlmostEqualSequence(vectors.normalize([1, 2, 3]),
+                                       [1.0 / 14.0 ** 0.5, 2.0 / 14.0 ** 0.5, 3.0 / 14.0 ** 0.5], places=13)
+        self.assertAlmostEqualSequence(vectors.normalize([4.0, -3.0]), [4.0 / 25.0 ** 0.5, -3.0 / 25.0 ** 0.5],
+                                       places=13)
+        self.assertAlmostEqualSequence(vectors.normalize([2.0]), [1.0], places=13)
+        self.assertAlmostEqualSequence(vectors.normalize([2.0], 2.0), [2.0], places=13)
+        self.assertAlmostEqualSequence(vectors.normalize([-1.0, -2.0], 2.5),
+                                       [-1.0 / 5.0 ** 0.5 * 2.5, -2.0 / 5.0 ** 0.5 * 2.5], places=13)
+        self.assertAlmostEqualSequence(vectors.normalize([1.0, 1.0, 1.0], 0.5),
+                                       [1.0 / 3.0 ** 0.5 * 0.5, 1.0 / 3.0 ** 0.5 * 0.5, 1.0 / 3.0 ** 0.5 * 0.5],
+                                       places=13)
         # Desired norm must be > 0
         with self.assertRaises(AssertionError):
-            vectors.normalize([1], -2)
+            vectors.normalize([1.0], -2.0)
         with self.assertRaises(AssertionError):
-            vectors.normalize([1, 2, 3], 0)
+            vectors.normalize([1.0, 2.0, 3.0], 0.0)
 
     def test_angle_between_two_vectors(self):
         self.assertAlmostEqual(vectors.angle_between_two_vectors([1], [2]), 0.0, places=13)

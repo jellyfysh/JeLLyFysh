@@ -1,12 +1,12 @@
 # JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
-# Copyright (C) 2019 The JeLLyFysh organization
-# (see the AUTHORS file for the full list of authors)
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
 #
 # This file is part of JeLLyFysh.
 #
 # JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-# License as published by the Free Software Foundation, either > version 3 of the License, or (at your option) any
-# later version.
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
 # JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
@@ -14,21 +14,34 @@
 # You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
 # If not, see <https://www.gnu.org/licenses/>.
 #
-# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2019] in References.bib):
-# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, Werner Krauth
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
 # JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
-# arXiv e-prints: 1907.12502 (2019), https://arxiv.org/abs/1907.12502
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
+import os
+import sys
 from unittest import TestCase, main, mock
-import setting
-from setting import hypercubic_setting
-from setting import hypercuboid_setting
-from setting.periodic_boundaries.hypercubic_periodic_boundaries import HypercubicPeriodicBoundaries
+import jellyfysh.setting as setting
+from jellyfysh.setting import hypercubic_setting
+from jellyfysh.setting import hypercuboid_setting
+_unittest_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+_unittest_directory_added_to_path = False
+if _unittest_directory not in sys.path:
+    sys.path.append(_unittest_directory)
+    _unittest_directory_added_to_path = True
+# noinspection PyUnresolvedReferences
+from expanded_test_case import ExpandedTestCase
+
+
+def tearDownModule():
+    if _unittest_directory_added_to_path:
+        sys.path.remove(_unittest_directory)
 
 
 class TestHypercubicSetting(TestCase):
     def setUp(self) -> None:
-        setting.HypercubicSetting(beta=2, dimension=5, system_length=1.5)
+        hypercubic_setting.HypercubicSetting(beta=2, dimension=5, system_length=1.5)
 
     def tearDown(self):
         setting.reset()
@@ -53,29 +66,29 @@ class TestHypercubicSetting(TestCase):
         self.assertEqual(hypercuboid_setting.dimension, 5)
 
     def test_setting_periodic_boundaries(self):
-        self.assertIsInstance(setting.periodic_boundaries, HypercubicPeriodicBoundaries)
+        self.assertIsInstance(setting.periodic_boundaries, hypercubic_setting.HypercubicPeriodicBoundaries)
 
     def test_hypercubic_setting_periodic_boundaries(self):
-        self.assertIsInstance(hypercubic_setting.periodic_boundaries, HypercubicPeriodicBoundaries)
+        self.assertIsInstance(hypercubic_setting.periodic_boundaries, hypercubic_setting.HypercubicPeriodicBoundaries)
 
     def test_hypercuboid_setting_periodic_boundaries(self):
-        self.assertIsInstance(hypercuboid_setting.periodic_boundaries, HypercubicPeriodicBoundaries)
+        self.assertIsInstance(hypercuboid_setting.periodic_boundaries, hypercubic_setting.HypercubicPeriodicBoundaries)
 
-    @mock.patch("setting.hypercubic_setting.random.uniform")
+    @mock.patch("jellyfysh.setting.hypercubic_setting.random.uniform")
     def test_setting_random_position(self, random_mock):
         random_mock.side_effect = [0.1, 0.2, 0.3, 0.4, 0.5]
         random_position = setting.random_position()
         self.assertEqual(random_position, [0.1, 0.2, 0.3, 0.4, 0.5])
         self.assertEqual(random_mock.call_args_list, [mock.call(0.0, 1.5) for _ in range(5)])
 
-    @mock.patch("setting.hypercubic_setting.random.uniform")
+    @mock.patch("jellyfysh.setting.hypercubic_setting.random.uniform")
     def test_hypercubic_setting_random_position(self, random_mock):
         random_mock.side_effect = [0.9, 0.0, 0.1, 0.2, 0.3]
         random_position = hypercubic_setting.random_position()
         self.assertEqual(random_position, [0.9, 0.0, 0.1, 0.2, 0.3])
         self.assertEqual(random_mock.call_args_list, [mock.call(0.0, 1.5) for _ in range(5)])
 
-    @mock.patch("setting.hypercubic_setting.random.uniform")
+    @mock.patch("jellyfysh.setting.hypercubic_setting.random.uniform")
     def test_hypercuboid_setting_random_position(self, random_mock):
         random_mock.side_effect = [0.9, 0.0, 0.1, 0.2, 0.3]
         random_position = hypercuboid_setting.random_position()
@@ -186,32 +199,32 @@ class TestHypercubicSetting(TestCase):
     def test_negative_beta_raises_error(self):
         setting.reset()
         with self.assertRaises(AttributeError):
-            setting.HypercubicSetting(beta=-1, dimension=3, system_length=1.0)
+            hypercubic_setting.HypercubicSetting(beta=-1, dimension=3, system_length=1.0)
 
     def test_beta_zero_raises_error(self):
         setting.reset()
         with self.assertRaises(AttributeError):
-            setting.HypercubicSetting(beta=0, dimension=3, system_length=1.0)
+            hypercubic_setting.HypercubicSetting(beta=0, dimension=3, system_length=1.0)
 
     def test_negative_system_length_raises_error(self):
         setting.reset()
         with self.assertRaises(AttributeError):
-            setting.HypercubicSetting(beta=1, dimension=3, system_length=-3.2)
+            hypercubic_setting.HypercubicSetting(beta=1, dimension=3, system_length=-3.2)
 
     def test_system_length_zero_raises_error(self):
         setting.reset()
         with self.assertRaises(AttributeError):
-            setting.HypercubicSetting(beta=1, dimension=3, system_length=0)
+            hypercubic_setting.HypercubicSetting(beta=1, dimension=3, system_length=0)
 
     def test_negative_dimension_raises_error(self):
         setting.reset()
         with self.assertRaises(AttributeError):
-            setting.HypercubicSetting(beta=1, dimension=-1, system_length=1.0)
+            hypercubic_setting.HypercubicSetting(beta=1, dimension=-1, system_length=1.0)
 
     def test_dimension_zero_raises_error(self):
         setting.reset()
         with self.assertRaises(AttributeError):
-            setting.HypercubicSetting(beta=1, dimension=0, system_length=1.0)
+            hypercubic_setting.HypercubicSetting(beta=1, dimension=0, system_length=1.0)
 
     def test_negative_number_of_root_nodes_raises_error(self):
         with self.assertRaises(AttributeError):
@@ -244,7 +257,7 @@ class TestHypercubicSetting(TestCase):
     def test_integer_casting_dimension(self):
         setting.reset()
         # noinspection PyTypeChecker
-        setting.HypercubicSetting(beta=1.0, dimension=2.8, system_length=1.0)
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=2.8, system_length=1.0)
         self.assertEqual(setting.dimension, 2)
         self.assertEqual(hypercubic_setting.dimension, 2)
         self.assertEqual(hypercuboid_setting.dimension, 2)
@@ -269,11 +282,138 @@ class TestHypercubicSetting(TestCase):
 
     def test_new_initialize_hypercubic_setting_raises_error(self):
         with self.assertRaises(AttributeError):
-            setting.HypercubicSetting(beta=1.0, dimension=3, system_length=1.0)
+            hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=1.0)
 
     def test_new_initialize_hypercuboid_setting_raises_error(self):
         with self.assertRaises(AttributeError):
-            setting.HypercuboidSetting(beta=1.0, dimension=3, system_lengths=[1.0, 2.0, 3.0])
+            hypercuboid_setting.HypercuboidSetting(beta=1.0, dimension=3, system_lengths=[1.0, 2.0, 3.0])
+
+
+# Inherit explicitly from TestCase class for Test functionality in PyCharm.
+class TestHypercubicPeriodicBoundaries(ExpandedTestCase, TestCase):
+    def tearDown(self):
+        setting.reset()
+
+    def test_correct_periodic_boundary_position_system_length_one(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=1.0)
+        position = [0.1, 0.4, 0.9]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertEqual(position, [0.1, 0.4, 0.9])
+        position = [0.0, 0.4, 1.0]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertAlmostEqualSequence(position, [0.0, 0.4, 0.0], places=13)
+        position = [-0.3, 1.4, 3.9]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertAlmostEqualSequence(position, [0.7, 0.4, 0.9], places=13)
+        position = [-10.0, 102.231, 0.999999]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertAlmostEqualSequence(position, [0.0, 0.231, 0.999999], places=13)
+
+    def test_correct_periodic_boundary_position_system_length_two(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=2.0)
+        position = [0.1, 1.4, 1.9]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertEqual(position, [0.1, 1.4, 1.9])
+        position = [0.0, 0.4, 2.0]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertAlmostEqualSequence(position, [0.0, 0.4, 0.0])
+        position = [-0.3, 1.4, 3.9]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertAlmostEqualSequence(position, [1.7, 1.4, 1.9], places=13)
+        position = [-10.0, 102.231, 0.999999]
+        setting.periodic_boundaries.correct_position(position)
+        self.assertAlmostEqualSequence(position, [0.0, 0.231, 0.999999], places=13)
+
+    def test_correct_periodic_boundary_position_entry_system_length_one(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=1.0)
+        position = [0.1, 0.4, 0.9]
+        position[0] = setting.periodic_boundaries.correct_position_entry(position[0], 0)
+        self.assertEqual(position, [0.1, 0.4, 0.9])
+        position = [0.0, 0.4, 1.0]
+        position[1] = setting.periodic_boundaries.correct_position_entry(position[1], 1)
+        self.assertAlmostEqualSequence(position, [0.0, 0.4, 1.0], places=13)
+        position = [-0.3, 1.4, 3.9]
+        position[2] = setting.periodic_boundaries.correct_position_entry(position[2], 2)
+        self.assertAlmostEqualSequence(position, [-0.3, 1.4, 0.9], places=13)
+        position = [-10.0, 102.231, 0.999999]
+        position[1] = setting.periodic_boundaries.correct_position_entry(position[1], 1)
+        self.assertAlmostEqualSequence(position, [-10.0, 0.231, 0.999999], places=13)
+
+    def test_correct_periodic_boundary_position_entry_system_length_two(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=2.0)
+        position = [0.1, 1.4, 1.9]
+        position[2] = setting.periodic_boundaries.correct_position_entry(position[2], 2)
+        self.assertEqual(position, [0.1, 1.4, 1.9])
+        position = [0.0, 0.4, 2.0]
+        position[1] = setting.periodic_boundaries.correct_position_entry(position[1], 1)
+        self.assertAlmostEqualSequence(position, [0.0, 0.4, 2.0])
+        position = [-0.3, 1.4, 3.9]
+        position[0] = setting.periodic_boundaries.correct_position_entry(position[0], 0)
+        self.assertAlmostEqualSequence(position, [1.7, 1.4, 3.9], places=13)
+        position = [-10.0, 102.231, 0.999999]
+        position[0] = setting.periodic_boundaries.correct_position_entry(position[0], 0)
+        self.assertAlmostEqualSequence(position, [0.0, 102.231, 0.999999], places=13)
+
+    def test_separation_vector_system_length_one(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=1.0)
+        position_one = [0.5, 0.6, 0.3]
+        position_two = [0.2, 0.1, 0.9]
+        self.assertAlmostEqualSequence(setting.periodic_boundaries.separation_vector(position_one, position_two),
+                                       [-0.3, -0.5, -0.4], places=13)
+
+    def test_separation_vector_system_length_two(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=2.0)
+        position_one = [1.7, 0.1, 1.5]
+        position_two = [0.4, 1.0, 1.4]
+        self.assertAlmostEqualSequence(setting.periodic_boundaries.separation_vector(position_one, position_two),
+                                       [0.7, 0.9, -0.1])
+
+    def test_correct_periodic_boundary_separation_length_one(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=4, system_length=1.0)
+        separation = [-0.5, -0.3, 0.4, 0.5]
+        setting.periodic_boundaries.correct_separation(separation)
+        self.assertAlmostEqualSequence(separation, [-0.5, -0.3, 0.4, -0.5], places=13)
+        separation = [-0.6, 1.3, 0.4, 0.9]
+        setting.periodic_boundaries.correct_separation(separation)
+        self.assertAlmostEqualSequence(separation, [0.4, 0.3, 0.4, -0.1], places=13)
+        setting.system_length = None
+        setting.system_length_over_two = None
+        setting.dimension = None
+
+    def test_correct_periodic_boundary_separation_length_half(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=4, system_length=0.5)
+        separation = [-0.25, -0.3, 0.4, 0.25]
+        setting.periodic_boundaries.correct_separation(separation)
+        self.assertAlmostEqualSequence(separation, [-0.25, 0.2, -0.1, -0.25], places=13)
+        separation = [-0.1, 0.1, 0.0, 0.05]
+        setting.periodic_boundaries.correct_separation(separation)
+        self.assertAlmostEqualSequence(separation, [-0.1, 0.1, 0.0, 0.05], places=13)
+
+    def test_correct_periodic_boundary_separation_entry_length_one(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=4, system_length=1.0)
+        separation = [-0.5, -0.3, 0.4, 0.5]
+        separation[3] = setting.periodic_boundaries.correct_separation_entry(separation[3], 3)
+        self.assertAlmostEqualSequence(separation, [-0.5, -0.3, 0.4, -0.5], places=13)
+        separation = [-0.6, 1.3, 0.4, 0.9]
+        separation[0] = setting.periodic_boundaries.correct_separation_entry(separation[0], 0)
+        self.assertAlmostEqualSequence(separation, [0.4, 1.3, 0.4, 0.9], places=13)
+
+    def test_correct_periodic_boundary_separation_entry_length_half(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=4, system_length=0.5)
+        separation = [-0.25, -0.3, 0.4, 0.25]
+        separation[1] = setting.periodic_boundaries.correct_separation_entry(separation[1], 1)
+        self.assertAlmostEqualSequence(separation, [-0.25, 0.2, 0.4, 0.25], places=13)
+        separation = [-0.1, 0.1, 0.0, 0.05]
+        separation[2] = setting.periodic_boundaries.correct_separation_entry(separation[2], 2)
+        self.assertAlmostEqualSequence(separation, [-0.1, 0.1, 0.0, 0.05], places=13)
+
+    def test_next_image_length_one(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=1.0)
+        self.assertEqual(setting.periodic_boundaries.next_image(0.4, 0), 1.4)
+
+    def test_next_image_length_two(self):
+        hypercubic_setting.HypercubicSetting(beta=1.0, dimension=3, system_length=2.0)
+        self.assertEqual(setting.periodic_boundaries.next_image(1.9, 1), 3.9)
 
 
 if __name__ == '__main__':

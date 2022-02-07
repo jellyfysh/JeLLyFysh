@@ -1,0 +1,348 @@
+# JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
+#
+# This file is part of JeLLyFysh.
+#
+# JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
+# If not, see <https://www.gnu.org/licenses/>.
+#
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
+# JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
+#
+TITLE     MDANALYSIS FRAME 0: RUN IDENTIFICATION HASH: c8c0f33a-48f4-43dc-82d4-61d564c54456
+CRYST1   12.836   12.836    0.000  90.00  90.00  90.00 P 1           1
+ATOM      1  H   HH      1      13.192  11.406   0.000  1.00  0.00           H
+ATOM      2  H   HH      1      12.190  11.349   0.000  1.00  0.00           H
+ATOM      3  H   HH      2      11.480   8.258   0.000  1.00  0.00           H
+ATOM      4  H   HH      2      11.631   7.258   0.000  1.00  0.00           H
+ATOM      5  H   HH      3      10.237   2.998   0.000  1.00  0.00           H
+ATOM      6  H   HH      3      10.823   3.803   0.000  1.00  0.00           H
+ATOM      7  H   HH      4      10.479   0.926   0.000  1.00  0.00           H
+ATOM      8  H   HH      4      10.375  -0.025   0.000  1.00  0.00           H
+ATOM      9  H   HH      5       0.573   9.750   0.000  1.00  0.00           H
+ATOM     10  H   HH      5       0.578   8.758   0.000  1.00  0.00           H
+ATOM     11  H   HH      6       5.949  12.664   0.000  1.00  0.00           H
+ATOM     12  H   HH      6       5.531  11.787   0.000  1.00  0.00           H
+ATOM     13  H   HH      7      10.653   8.807   0.000  1.00  0.00           H
+ATOM     14  H   HH      7      11.180   9.691   0.000  1.00  0.00           H
+ATOM     15  H   HH      8       4.996  13.055   0.000  1.00  0.00           H
+ATOM     16  H   HH      8       4.410  12.264   0.000  1.00  0.00           H
+ATOM     17  H   HH      9       6.955   3.822   0.000  1.00  0.00           H
+ATOM     18  H   HH      9       5.999   3.679   0.000  1.00  0.00           H
+ATOM     19  H   HH     10       7.585   7.231   0.000  1.00  0.00           H
+ATOM     20  H   HH     10       8.556   7.395   0.000  1.00  0.00           H
+ATOM     21  H   HH     11       1.454   9.338   0.000  1.00  0.00           H
+ATOM     22  H   HH     11       2.113  10.049   0.000  1.00  0.00           H
+ATOM     23  H   HH     12       2.045   0.973   0.000  1.00  0.00           H
+ATOM     24  H   HH     12       3.000   0.792   0.000  1.00  0.00           H
+ATOM     25  H   HH     13       1.005   1.135   0.000  1.00  0.00           H
+ATOM     26  H   HH     13       0.073   1.404   0.000  1.00  0.00           H
+ATOM     27  H   HH     14       4.439   2.268   0.000  1.00  0.00           H
+ATOM     28  H   HH     14       4.272   3.232   0.000  1.00  0.00           H
+ATOM     29  H   HH     15       9.671   8.870   0.000  1.00  0.00           H
+ATOM     30  H   HH     15      10.094   9.747   0.000  1.00  0.00           H
+ATOM     31  H   HH     16      11.580  10.596   0.000  1.00  0.00           H
+ATOM     32  H   HH     16      10.620  10.640   0.000  1.00  0.00           H
+ATOM     33  H   HH     17       1.934   3.788   0.000  1.00  0.00           H
+ATOM     34  H   HH     17       2.319   2.839   0.000  1.00  0.00           H
+ATOM     35  H   HH     18       2.476  12.722   0.000  1.00  0.00           H
+ATOM     36  H   HH     18       1.877  11.977   0.000  1.00  0.00           H
+ATOM     37  H   HH     19      12.012   2.162   0.000  1.00  0.00           H
+ATOM     38  H   HH     19      12.860   2.756   0.000  1.00  0.00           H
+ATOM     39  H   HH     20       9.711   3.823   0.000  1.00  0.00           H
+ATOM     40  H   HH     20       9.882   4.844   0.000  1.00  0.00           H
+ATOM     41  H   HH     21       4.195   4.318   0.000  1.00  0.00           H
+ATOM     42  H   HH     21       5.065   3.921   0.000  1.00  0.00           H
+ATOM     43  H   HH     22       3.753   1.456   0.000  1.00  0.00           H
+ATOM     44  H   HH     22       2.842   1.839   0.000  1.00  0.00           H
+ATOM     45  H   HH     23      11.568   0.970   0.000  1.00  0.00           H
+ATOM     46  H   HH     23      12.290   0.321   0.000  1.00  0.00           H
+ATOM     47  H   HH     24      10.486   7.757   0.000  1.00  0.00           H
+ATOM     48  H   HH     24      10.267   6.821   0.000  1.00  0.00           H
+ATOM     49  H   HH     25       7.467   1.539   0.000  1.00  0.00           H
+ATOM     50  H   HH     25       6.778   0.787   0.000  1.00  0.00           H
+ATOM     51  H   HH     26       1.060   3.258   0.000  1.00  0.00           H
+ATOM     52  H   HH     26       0.194   3.730   0.000  1.00  0.00           H
+ATOM     53  H   HH     27       1.459   7.176   0.000  1.00  0.00           H
+ATOM     54  H   HH     27       0.653   7.755   0.000  1.00  0.00           H
+ATOM     55  H   HH     28       1.817   1.961   0.000  1.00  0.00           H
+ATOM     56  H   HH     28       0.793   2.082   0.000  1.00  0.00           H
+ATOM     57  H   HH     29       2.602   6.558   0.000  1.00  0.00           H
+ATOM     58  H   HH     29       3.422   5.991   0.000  1.00  0.00           H
+ATOM     59  H   HH     30       6.398   9.662   0.000  1.00  0.00           H
+ATOM     60  H   HH     30       6.303   8.697   0.000  1.00  0.00           H
+ATOM     61  H   HH     31       3.524   7.054   0.000  1.00  0.00           H
+ATOM     62  H   HH     31       4.275   6.424   0.000  1.00  0.00           H
+ATOM     63  H   HH     32       4.717  11.213   0.000  1.00  0.00           H
+ATOM     64  H   HH     32       3.994  10.461   0.000  1.00  0.00           H
+ATOM     65  H   HH     33       2.981  10.665   0.000  1.00  0.00           H
+ATOM     66  H   HH     33       3.091   9.675   0.000  1.00  0.00           H
+ATOM     67  H   HH     34       6.185   2.740   0.000  1.00  0.00           H
+ATOM     68  H   HH     34       6.385   1.770   0.000  1.00  0.00           H
+ATOM     69  H   HH     35       7.748  11.933   0.000  1.00  0.00           H
+ATOM     70  H   HH     35       8.665  11.617   0.000  1.00  0.00           H
+ATOM     71  H   HH     36       1.099  10.699   0.000  1.00  0.00           H
+ATOM     72  H   HH     36       2.017  11.008   0.000  1.00  0.00           H
+ATOM     73  H   HH     37      11.668   4.277   0.000  1.00  0.00           H
+ATOM     74  H   HH     37      12.118   3.402   0.000  1.00  0.00           H
+ATOM     75  H   HH     38       1.597   5.884   0.000  1.00  0.00           H
+ATOM     76  H   HH     38       0.786   6.494   0.000  1.00  0.00           H
+ATOM     77  H   HH     39      10.856   1.880   0.000  1.00  0.00           H
+ATOM     78  H   HH     39      11.233   2.789   0.000  1.00  0.00           H
+ATOM     79  H   HH     40       8.302   9.160   0.000  1.00  0.00           H
+ATOM     80  H   HH     40       9.099   9.704   0.000  1.00  0.00           H
+ATOM     81  H   HH     41       9.536   7.595   0.000  1.00  0.00           H
+ATOM     82  H   HH     41       8.875   8.319   0.000  1.00  0.00           H
+ATOM     83  H   HH     42      10.971   5.048   0.000  1.00  0.00           H
+ATOM     84  H   HH     42      11.027   6.070   0.000  1.00  0.00           H
+ATOM     85  H   HH     43       9.504  10.967   0.000  1.00  0.00           H
+ATOM     86  H   HH     43       8.589  10.559   0.000  1.00  0.00           H
+ATOM     87  H   HH     44       5.565   8.001   0.000  1.00  0.00           H
+ATOM     88  H   HH     44       5.330   8.950   0.000  1.00  0.00           H
+ATOM     89  H   HH     45      12.209   9.362   0.000  1.00  0.00           H
+ATOM     90  H   HH     45      12.593  10.259   0.000  1.00  0.00           H
+ATOM     91  H   HH     46       7.268   2.477   0.000  1.00  0.00           H
+ATOM     92  H   HH     46       8.198   2.156   0.000  1.00  0.00           H
+ATOM     93  H   HH     47       6.801  11.636   0.000  1.00  0.00           H
+ATOM     94  H   HH     47       7.037  12.626   0.000  1.00  0.00           H
+ATOM     95  H   HH     48       2.312   8.841   0.000  1.00  0.00           H
+ATOM     96  H   HH     48       3.319   8.617   0.000  1.00  0.00           H
+ATOM     97  H   HH     49       8.505   0.023   0.000  1.00  0.00           H
+ATOM     98  H   HH     49       7.753   0.622   0.000  1.00  0.00           H
+ATOM     99  H   HH     50      10.067   5.876   0.000  1.00  0.00           H
+ATOM    100  H   HH     50       9.109   5.791   0.000  1.00  0.00           H
+ATOM    101  H   HH     51       3.436  12.398   0.000  1.00  0.00           H
+ATOM    102  H   HH     51       4.006  13.248   0.000  1.00  0.00           H
+ATOM    103  H   HH     52       9.254   2.939   0.000  1.00  0.00           H
+ATOM    104  H   HH     52       9.547   2.025   0.000  1.00  0.00           H
+ATOM    105  H   HH     53       1.388  13.057   0.000  1.00  0.00           H
+ATOM    106  H   HH     53       0.912  12.212   0.000  1.00  0.00           H
+ATOM    107  H   HH     54       6.883   7.912   0.000  1.00  0.00           H
+ATOM    108  H   HH     54       6.623   6.930   0.000  1.00  0.00           H
+ATOM    109  H   HH     55      12.014   6.331   0.000  1.00  0.00           H
+ATOM    110  H   HH     55      11.909   5.310   0.000  1.00  0.00           H
+ATOM    111  H   HH     56       5.159   5.939   0.000  1.00  0.00           H
+ATOM    112  H   HH     56       5.647   6.839   0.000  1.00  0.00           H
+ATOM    113  H   HH     57       0.409  13.093   0.000  1.00  0.00           H
+ATOM    114  H   HH     57      -0.163  12.255   0.000  1.00  0.00           H
+ATOM    115  H   HH     58      11.408  12.736   0.000  1.00  0.00           H
+ATOM    116  H   HH     58      11.171  11.729   0.000  1.00  0.00           H
+ATOM    117  H   HH     59       4.671   7.360   0.000  1.00  0.00           H
+ATOM    118  H   HH     59       4.359   8.297   0.000  1.00  0.00           H
+ATOM    119  H   HH     60       2.539   5.592   0.000  1.00  0.00           H
+ATOM    120  H   HH     60       3.412   5.013   0.000  1.00  0.00           H
+ATOM    121  H   HH     61       5.770   0.924   0.000  1.00  0.00           H
+ATOM    122  H   HH     61       4.773   1.152   0.000  1.00  0.00           H
+ATOM    123  H   HH     62      12.771   5.722   0.000  1.00  0.00           H
+ATOM    124  H   HH     62      12.821   4.688   0.000  1.00  0.00           H
+ATOM    125  H   HH     63       9.371  12.347   0.000  1.00  0.00           H
+ATOM    126  H   HH     63      10.132  11.746   0.000  1.00  0.00           H
+ATOM    127  H   HH     64       4.955  10.119   0.000  1.00  0.00           H
+ATOM    128  H   HH     64       4.299   9.317   0.000  1.00  0.00           H
+ATOM    129  H   HH     65       2.454   7.575   0.000  1.00  0.00           H
+ATOM    130  H   HH     65       1.593   8.137   0.000  1.00  0.00           H
+ATOM    131  H   HH     66       6.719  10.579   0.000  1.00  0.00           H
+ATOM    132  H   HH     66       5.774  10.808   0.000  1.00  0.00           H
+ATOM    133  H   HH     67       7.641  10.964   0.000  1.00  0.00           H
+ATOM    134  H   HH     67       7.760   9.985   0.000  1.00  0.00           H
+ATOM    135  H   HH     68       8.750   4.819   0.000  1.00  0.00           H
+ATOM    136  H   HH     68       7.908   5.415   0.000  1.00  0.00           H
+ATOM    137  H   HH     69      12.544   8.186   0.000  1.00  0.00           H
+ATOM    138  H   HH     69      12.595   7.153   0.000  1.00  0.00           H
+ATOM    139  H   HH     70       3.352   3.590   0.000  1.00  0.00           H
+ATOM    140  H   HH     70       3.501   2.620   0.000  1.00  0.00           H
+ATOM    141  H   HH     71       7.244   9.081   0.000  1.00  0.00           H
+ATOM    142  H   HH     71       7.897   8.294   0.000  1.00  0.00           H
+ATOM    143  H   HH     72       2.811  11.634   0.000  1.00  0.00           H
+ATOM    144  H   HH     72       3.753  11.460   0.000  1.00  0.00           H
+ATOM    145  H   HH     73       9.424   0.595   0.000  1.00  0.00           H
+ATOM    146  H   HH     73       8.822   1.347   0.000  1.00  0.00           H
+ATOM    147  H   HH     74       7.809   4.433   0.000  1.00  0.00           H
+ATOM    148  H   HH     74       7.041   5.019   0.000  1.00  0.00           H
+ATOM    149  H   HH     75       5.208   2.844   0.000  1.00  0.00           H
+ATOM    150  H   HH     75       5.439   1.893   0.000  1.00  0.00           H
+ATOM    151  H   HH     76       5.120   4.894   0.000  1.00  0.00           H
+ATOM    152  H   HH     76       4.294   5.418   0.000  1.00  0.00           H
+ATOM    153  H   HH     77       8.674   3.784   0.000  1.00  0.00           H
+ATOM    154  H   HH     77       7.826   3.265   0.000  1.00  0.00           H
+ATOM    155  H   HH     78       7.269   6.228   0.000  1.00  0.00           H
+ATOM    156  H   HH     78       8.249   6.464   0.000  1.00  0.00           H
+ATOM    157  H   HH     79       6.150   4.657   0.000  1.00  0.00           H
+ATOM    158  H   HH     79       6.302   5.651   0.000  1.00  0.00           H
+ATOM    159  H   HH     80       1.049   4.246   0.000  1.00  0.00           H
+ATOM    160  H   HH     80       0.902   5.225   0.000  1.00  0.00           H
+ATOM    161  H   HH     81       1.860   4.828   0.000  1.00  0.00           H
+ATOM    162  H   HH     81       2.727   4.320   0.000  1.00  0.00           H
+CONECT    1    2
+CONECT    2    1
+CONECT    3    4
+CONECT    4    3
+CONECT    5    6
+CONECT    6    5
+CONECT    7    8
+CONECT    8    7
+CONECT    9   10
+CONECT   10    9
+CONECT   11   12
+CONECT   12   11
+CONECT   13   14
+CONECT   14   13
+CONECT   15   16
+CONECT   16   15
+CONECT   17   18
+CONECT   18   17
+CONECT   19   20
+CONECT   20   19
+CONECT   21   22
+CONECT   22   21
+CONECT   23   24
+CONECT   24   23
+CONECT   25   26
+CONECT   26   25
+CONECT   27   28
+CONECT   28   27
+CONECT   29   30
+CONECT   30   29
+CONECT   31   32
+CONECT   32   31
+CONECT   33   34
+CONECT   34   33
+CONECT   35   36
+CONECT   36   35
+CONECT   37   38
+CONECT   38   37
+CONECT   39   40
+CONECT   40   39
+CONECT   41   42
+CONECT   42   41
+CONECT   43   44
+CONECT   44   43
+CONECT   45   46
+CONECT   46   45
+CONECT   47   48
+CONECT   48   47
+CONECT   49   50
+CONECT   50   49
+CONECT   51   52
+CONECT   52   51
+CONECT   53   54
+CONECT   54   53
+CONECT   55   56
+CONECT   56   55
+CONECT   57   58
+CONECT   58   57
+CONECT   59   60
+CONECT   60   59
+CONECT   61   62
+CONECT   62   61
+CONECT   63   64
+CONECT   64   63
+CONECT   65   66
+CONECT   66   65
+CONECT   67   68
+CONECT   68   67
+CONECT   69   70
+CONECT   70   69
+CONECT   71   72
+CONECT   72   71
+CONECT   73   74
+CONECT   74   73
+CONECT   75   76
+CONECT   76   75
+CONECT   77   78
+CONECT   78   77
+CONECT   79   80
+CONECT   80   79
+CONECT   81   82
+CONECT   82   81
+CONECT   83   84
+CONECT   84   83
+CONECT   85   86
+CONECT   86   85
+CONECT   87   88
+CONECT   88   87
+CONECT   89   90
+CONECT   90   89
+CONECT   91   92
+CONECT   92   91
+CONECT   93   94
+CONECT   94   93
+CONECT   95   96
+CONECT   96   95
+CONECT   97   98
+CONECT   98   97
+CONECT   99  100
+CONECT  100   99
+CONECT  101  102
+CONECT  102  101
+CONECT  103  104
+CONECT  104  103
+CONECT  105  106
+CONECT  106  105
+CONECT  107  108
+CONECT  108  107
+CONECT  109  110
+CONECT  110  109
+CONECT  111  112
+CONECT  112  111
+CONECT  113  114
+CONECT  114  113
+CONECT  115  116
+CONECT  116  115
+CONECT  117  118
+CONECT  118  117
+CONECT  119  120
+CONECT  120  119
+CONECT  121  122
+CONECT  122  121
+CONECT  123  124
+CONECT  124  123
+CONECT  125  126
+CONECT  126  125
+CONECT  127  128
+CONECT  128  127
+CONECT  129  130
+CONECT  130  129
+CONECT  131  132
+CONECT  132  131
+CONECT  133  134
+CONECT  134  133
+CONECT  135  136
+CONECT  136  135
+CONECT  137  138
+CONECT  138  137
+CONECT  139  140
+CONECT  140  139
+CONECT  141  142
+CONECT  142  141
+CONECT  143  144
+CONECT  144  143
+CONECT  145  146
+CONECT  146  145
+CONECT  147  148
+CONECT  148  147
+CONECT  149  150
+CONECT  150  149
+CONECT  151  152
+CONECT  152  151
+CONECT  153  154
+CONECT  154  153
+CONECT  155  156
+CONECT  156  155
+CONECT  157  158
+CONECT  158  157
+CONECT  159  160
+CONECT  160  159
+CONECT  161  162
+CONECT  162  161
+END

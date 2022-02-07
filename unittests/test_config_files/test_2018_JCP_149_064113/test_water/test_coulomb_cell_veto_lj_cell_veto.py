@@ -1,12 +1,12 @@
 # JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
-# Copyright (C) 2019 The JeLLyFysh organization
-# (see the AUTHORS file for the full list of authors)
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
 #
 # This file is part of JeLLyFysh.
 #
 # JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-# License as published by the Free Software Foundation, either > version 3 of the License, or (at your option) any
-# later version.
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
 # JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
@@ -14,48 +14,39 @@
 # You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
 # If not, see <https://www.gnu.org/licenses/>.
 #
-# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2019] in References.bib):
-# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, Werner Krauth
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
 # JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
-# arXiv e-prints: 1907.12502 (2019), https://arxiv.org/abs/1907.12502
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 from configparser import ConfigParser
 import contextlib
 import os
+from pkg_resources import resource_filename
 import unittest
 from unittest import mock
-from activator.tagger.factor_type_maps import FactorTypeMaps
-import run
-import setting
-
-
-_src_directory = os.path.abspath(os.path.dirname(os.path.abspath(__file__)) + "/../../../../src/")
-_current_working_directory = os.getcwd()
-
-
-def setUpModule():
-    # Change to the source directory as the current working directory so that the factory finds all relevant files
-    os.chdir(_src_directory)
-
-
-def tearDownModule():
-    # Revert everything which was done in setUpModule
-    os.chdir(_current_working_directory)
+import sys
+from jellyfysh.activator.tagger.factor_type_maps import FactorTypeMaps
+import jellyfysh.run as run
+import jellyfysh.setting as setting
 
 
 class TestCoulombCellVetoLjCellVeto(unittest.TestCase):
     def setUp(self) -> None:
         self._config = ConfigParser()
-        self._ini_file = "config_files/2018_JCP_149_064113/water/coulomb_cell_veto_lj_cell_veto.ini"
+        self._ini_file = resource_filename(
+            "jellyfysh", "config_files/2018_JCP_149_064113/water/coulomb_cell_veto_lj_cell_veto.ini")
         if not self._config.read(self._ini_file):
             self.fail("Could not read the ini file {0}.".format(self._ini_file))
         # Reduce end of run time
         self._config.set("FinalTimeEndOfRunEventHandler", "end_of_run_time", "10")
         # Replace output file
         self._config.set("OxygenOxygenSeparationOutputHandler", "filename", "Test_CoulombCellVeto_LJCellVeto.dat")
+        # Set factor type maps file
+        self._config.set("FactorTypeMaps", "filename",
+                         resource_filename("jellyfysh", self._config.get("FactorTypeMaps", "filename")))
 
     def tearDown(self) -> None:
-        # Use class method to make sure files are deleted even when a test fails
         if "Test_CoulombCellVeto_LJCellVeto.dat" in os.listdir("."):
             os.remove("Test_CoulombCellVeto_LJCellVeto.dat")
         if "Test_CoulombCellVeto_LJCellVeto.dat.tmp" in os.listdir("."):
@@ -65,16 +56,16 @@ class TestCoulombCellVetoLjCellVeto(unittest.TestCase):
         # Reset factor type maps singleton
         FactorTypeMaps._instance = None
 
-    @mock.patch("run.read_config")
+    @mock.patch("jellyfysh.run.read_config")
     def test_run_coulomb_cell_veto_lj_cell_veto(self, read_config_mock):
-        argv = [self._ini_file]
+        sys.argv[1:] = [self._ini_file]
         read_config_mock.return_value = self._config
         print("\nTest if the .ini file {0} runs without an exception...".format(self._ini_file), end="")
         # Redirect stdout to the null device
         with open(os.devnull, 'w') as devnull:
             with contextlib.redirect_stdout(devnull):
-                run.main(argv)
-
+                run.main()
+        read_config_mock.assert_called_once_with(self._ini_file)
         self.assertIn("Test_CoulombCellVeto_LJCellVeto.dat", os.listdir("."))
 
 

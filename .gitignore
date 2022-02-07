@@ -72,12 +72,26 @@ docs/build/*
 *InterpValues*.dat
 
 ## Local folder
-src/local_test
+jellyfysh/local_test
 *.local.*
 *.jpg
 *.dcd
 *.pdb
 *.nc
 
-#mac virutal environment created by pycharm
-src/venv/
+# Virtual environment files
+.python-version
+venv/
+
+# Setuptools files
+JeLLyFysh.egg-info/
+build/
+.eggs/
+
+# Cffi files
+*.so
+_*.c
+
+# Jupyter files
+*.ipynb
+.ipynb_checkpoints

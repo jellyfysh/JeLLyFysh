@@ -1,12 +1,12 @@
 # JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
-# Copyright (C) 2019 The JeLLyFysh organization
-# (see the AUTHORS file for the full list of authors)
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
 #
 # This file is part of JeLLyFysh.
 #
 # JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-# License as published by the Free Software Foundation, either > version 3 of the License, or (at your option) any
-# later version.
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
 # JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
@@ -14,16 +14,34 @@
 # You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
 # If not, see <https://www.gnu.org/licenses/>.
 #
-# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2019] in References.bib):
-# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, Werner Krauth
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
 # JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
-# arXiv e-prints: 1907.12502 (2019), https://arxiv.org/abs/1907.12502
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
+import os
+import sys
 from unittest import TestCase, main
-import base.node as node
+import jellyfysh.base.node as node
+import jellyfysh.base.unit as unit
+import jellyfysh.setting as setting
+from jellyfysh.setting import hypercubic_setting
+_unittest_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+_unittest_directory_added_to_path = False
+if _unittest_directory not in sys.path:
+    sys.path.append(_unittest_directory)
+    _unittest_directory_added_to_path = True
+# noinspection PyUnresolvedReferences
+from expanded_test_case import ExpandedTestCase
 
 
-class TestNode(TestCase):
+def tearDownModule():
+    if _unittest_directory_added_to_path:
+        sys.path.remove(_unittest_directory)
+
+
+# Inherit explicitly from TestCase class for Test functionality in PyCharm.
+class TestNode(ExpandedTestCase, TestCase):
     def test_add_child(self):
         # Build up tree and check if children and parents are set correctly
         root_node = node.Node("RootNode")
@@ -182,6 +200,80 @@ class TestNode(TestCase):
 
         with self.assertRaises(AssertionError):
             list(node.yield_nodes_on_level_below(root_node, -1))
+
+    def test_yield_closest_leaf_unit_positions(self):
+        # Test with root node without children
+        hypercubic_setting.HypercubicSetting(system_length=10.0)
+        root_unit = unit.Unit(identifier=(0,), position=[2.1, 8.3, 0.4])
+        root_cnode = node.Node(root_unit, weight=1)
+        generated_values = list(node.yield_closest_leaf_unit_positions(root_cnode))
+        self.assertEqual(len(generated_values), 1)
+        self.assertTrue(all(len(generated_value) == 2 for generated_value in generated_values))
+        self.assertIs(generated_values[0][0], root_unit)
+        self.assertEqual(generated_values[0][1], [2.1, 8.3, 0.4])
+        # Value of the node should be unchanged
+        self.assertEqual(root_cnode.value.identifier, (0,))
+        self.assertEqual(root_cnode.value.position, [2.1, 8.3, 0.4])
+        self.assertEqual(len(root_cnode.children), 0)
+
+        # Test with root node with three children where the children positions are already correct
+        child_unit_one = unit.Unit(identifier=(0, 0), position=[0.1, 8.9, 0.3])
+        child_unit_two = unit.Unit(identifier=(0, 1), position=[2.3, 8.2, 0.6])
+        child_unit_three = unit.Unit(identifier=(0, 2), position=[3.9, 7.8, 0.3])
+        root_cnode.add_child(node.Node(child_unit_one, weight=1.0 / 3.0))
+        root_cnode.add_child(node.Node(child_unit_two, weight=1.0 / 3.0))
+        root_cnode.add_child(node.Node(child_unit_three, weight=1.0 / 3.0))
+        generated_values = list(node.yield_closest_leaf_unit_positions(root_cnode))
+        self.assertEqual(len(generated_values), 3)
+        self.assertTrue(all(len(generated_value) == 2 for generated_value in generated_values))
+        self.assertIs(generated_values[0][0], child_unit_one)
+        self.assertAlmostEqualSequence(generated_values[0][1], [0.1, 8.9, 0.3], places=12)
+        self.assertIs(generated_values[1][0], child_unit_two)
+        self.assertAlmostEqualSequence(generated_values[1][1], [2.3, 8.2, 0.6], places=12)
+        self.assertIs(generated_values[2][0], child_unit_three)
+        self.assertAlmostEqualSequence(generated_values[2][1], [3.9, 7.8, 0.3], places=12)
+        # Value of the node should be unchanged
+        self.assertEqual(root_cnode.value.identifier, (0,))
+        self.assertEqual(root_cnode.value.position, [2.1, 8.3, 0.4])
+        self.assertEqual(len(root_cnode.children), 3)
+        self.assertEqual(root_cnode.children[0].value.identifier, (0, 0))
+        self.assertAlmostEqualSequence(root_cnode.children[0].value.position, [0.1, 8.9, 0.3], places=12)
+        self.assertEqual(len(root_cnode.children[0].children), 0)
+        self.assertEqual(root_cnode.children[1].value.identifier, (0, 1))
+        self.assertAlmostEqualSequence(root_cnode.children[1].value.position, [2.3, 8.2, 0.6], places=12)
+        self.assertEqual(len(root_cnode.children[1].children), 0)
+        self.assertEqual(root_cnode.children[2].value.identifier, (0, 2))
+        self.assertAlmostEqualSequence(root_cnode.children[2].value.position, [3.9, 7.8, 0.3], places=12)
+        self.assertEqual(len(root_cnode.children[2].children), 0)
+
+        # Test with root node with three children where the children positions must be corrected
+        root_cnode.children[0].value.position = [2.4, 8.9, 2.2]
+        root_cnode.children[1].value.position = [9.5, 0.1, 9.1]
+        root_cnode.children[2].value.position = [4.4, 5.9, 9.9]
+        generated_values = list(node.yield_closest_leaf_unit_positions(root_cnode))
+        self.assertEqual(len(generated_values), 3)
+        self.assertTrue(all(len(generated_value) == 2 for generated_value in generated_values))
+        self.assertIs(generated_values[0][0], child_unit_one)
+        self.assertAlmostEqualSequence(generated_values[0][1], [2.4, 8.9, 2.2], places=12)
+        self.assertIs(generated_values[1][0], child_unit_two)
+        self.assertAlmostEqualSequence(generated_values[1][1], [-0.5, 10.1, -0.9], places=12)
+        self.assertIs(generated_values[2][0], child_unit_three)
+        self.assertAlmostEqualSequence(generated_values[2][1], [4.4, 5.9, -0.1], places=12)
+        # Value of the node should be unchanged
+        self.assertEqual(root_cnode.value.identifier, (0,))
+        self.assertEqual(root_cnode.value.position, [2.1, 8.3, 0.4])
+        self.assertEqual(len(root_cnode.children), 3)
+        self.assertEqual(root_cnode.children[0].value.identifier, (0, 0))
+        self.assertAlmostEqualSequence(root_cnode.children[0].value.position, [2.4, 8.9, 2.2], places=12)
+        self.assertEqual(len(root_cnode.children[0].children), 0)
+        self.assertEqual(root_cnode.children[1].value.identifier, (0, 1))
+        self.assertAlmostEqualSequence(root_cnode.children[1].value.position, [9.5, 0.1, 9.1], places=12)
+        self.assertEqual(len(root_cnode.children[1].children), 0)
+        self.assertEqual(root_cnode.children[2].value.identifier, (0, 2))
+        self.assertAlmostEqualSequence(root_cnode.children[2].value.position, [4.4, 5.9, 9.9], places=12)
+        self.assertEqual(len(root_cnode.children[2].children), 0)
+
+        setting.reset()
 
 
 if __name__ == '__main__':

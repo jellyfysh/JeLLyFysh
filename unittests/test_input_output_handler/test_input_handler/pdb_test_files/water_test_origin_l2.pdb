@@ -1,0 +1,35 @@
+# JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
+#
+# This file is part of JeLLyFysh.
+#
+# JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
+# If not, see <https://www.gnu.org/licenses/>.
+#
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
+# JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
+#
+CRYST1   10.261   10.261   10.261  90.00  90.00  90.00 P 1           1
+ATOM      1    1 UNK X   1      -2.402  -4.950   0.879  0.00  0.00      UNK
+ATOM      2    2 UNK X   1      -1.598  -4.398   1.139  0.00  0.00      UNK
+ATOM      3    1 UNK X   1      -1.467  -4.226   2.135  0.00  0.00      UNK
+ATOM      4    1 UNK X   2      -0.292   1.519  -0.815  0.00  0.00      UNK
+ATOM      5    2 UNK X   2      -0.193   1.315   0.160  0.00  0.00      UNK
+ATOM      6    1 UNK X   2       0.059   1.032   0.408  0.00  0.00      UNK
+ATOM      7    1 UNK X   3       2.429  -0.180   0.100  0.00  0.00      UNK
+ATOM      8    2 UNK X   3       1.747   0.149   0.744  0.00  0.00      UNK
+ATOM      9    1 UNK X   3       1.959   1.120   0.832  0.00  0.00      UNK
+ATOM     10    1 UNK X   4       4.283  -1.471   0.340  0.00  0.00      UNK
+ATOM     11    2 UNK X   4       4.247  -0.646  -0.294  0.00  0.00      UNK
+ATOM     12    1 UNK X   4      -5.087  -0.524  -0.731  0.00  0.00      UNK
+END

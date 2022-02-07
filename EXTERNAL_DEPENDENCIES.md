@@ -1,45 +1,74 @@
 # External Dependencies
 
-A few of JeLLyFysh's modules depend on non-standard-library Python packages. These additional packages need be installed 
-only when when these modules are used.
+A few of JeLLyFysh's modules depend on non-standard-library Python packages. 
 
-The plotting scripts located in the [`src/output/2018_JCP_149_064113`](src/output/2018_JCP_149_064113) directory use 
-[Matplotlib](https://matplotlib.org) and [NumPy](https://numpy.org). The recommended version of Matplotlib for these 
-scripts is 3.1.0.
+## Required Dependencies
 
-To read and write Protein Data Bank (pdb) files, the package [MDAnalysis](https://www.mdanalysis.org) is used. This 
-concerns the modules 
-[`src/input_output_handler/output_handler/pdb_output_handler.py`](src/input_output_handler/output_handler/pdb_output_handler.py) 
-and 
-[`src/input_output_handler/input_handler/pdb_input_handler.py`](src/input_output_handler/input_handler/pdb_input_handler.py).
+These dependencies are installed by setuptools during the installation of the JeLLyFysh application (see 
+[README.md](README.md)).
 
-To dump entire runs using the module 
-[`src/input_output_handler/output_handler/dumping_output_handler.py`](src/input_output_handler/output_handler/dumping_output_handler.py) 
-and resume dumped runs using [`src/resume.py`](src/resume.py), the [Dill](https://pypi.org/project/dill/) package is 
-used.
+1. The [Dill](https://pypi.org/project/dill/) package is used in order to dump entire runs using the
+   [`DumpingOutputHandler`](jellyfysh/input_output_handler/output_handler/dumping_output_handler.py), and resume dumped 
+   runs using the `jellyfysh-resume` executable.
+
+
+2. The [CFFI](https://cffi.readthedocs.io/en/latest/) package is used to access C code in the JeLLyFysh application. 
+   This is the recommended way for PyPy (see https://doc.pypy.org/en/latest/extending.html).
+
+## Optional Dependencies
+
+The following additional packages need be installed only when the described modules are used. They are not installed by 
+setuptools during the installation of the JeLLyFysh application (see [README.md](README.md)) but have to be installed 
+manually (for example, with the help of pip). 
+
+1. The plotting scripts located in the [`jellyfysh-examples/output`](jellyfysh/output) directory, which is created by 
+   the `jellyfysh-examples` executable, use [Matplotlib](https://matplotlib.org) and [NumPy](https://numpy.org). The 
+   recommended version of Matplotlib for these scripts is 3.1.0.
+
+
+2. To interact with Protein Data Bank (pdb) and DCD binary trajectory files, the
+    [MDAnalysis](https://www.mdanalysis.org) package is used. This concerns the modules 
+    [`jellyfysh.input_output_handler.output_handler.pdb_output_handler`](jellyfysh/input_output_handler/output_handler/pdb_output_handler.py), 
+    [`jellyfysh.input_output_handler.input_handler.pdb_input_handler`](jellyfysh/input_output_handler/input_handler/pdb_input_handler.py)
+    and
+    [`jellyfysh.input_output_handler.output_handler.dcd_output_handler.py`](jellyfysh/input_output_handler/output_handler/dcd_output_handler.py).
 
 ## Known bugs
 
-### MDAnalysis for PyPy on MacOs
-Some problems exist for MDAnalysis with PyPy (version >= 7) on MacOs 10.14 installed by pip. To fix the, first 
-install [SciPy](https://www.scipy.org) (a dependency of MDAnalysis). Here, two things are failing:
-1. The installation itself (related to the issue explained 
-[here](https://bitbucket.org/pypy/pypy/issues/2942/unable-to-install-numpy-with-pypy3-on)).
-2. In version 1.3.0 of SciPy, calling `from scipy.spatial import cKDTree` fails even after a successful installation 
-because SciPy does not find some C library.
+### SciPy/MDAnalysis for PyPy on MacOs
 
-The second point can be fixed (partially) by installing an older version of SciPy. Then calling twice 
-`from scipy.spatial import cKDTree` works. The first point is fixed by setting `MACOSX_DEPLOYMENT_TARGET=10.14`.
+Some problems exist for [SciPy](https://www.scipy.org) (version >= 1.3) with PyPy (version >= 7) on MacOs (SciPy is, 
+e.g., installed as a dependency of MDAnalysis) This is also true for SciPy 1.2.3, however the way described in this 
+section succeeds in installing it nevertheless.
 
-Therefore, calling the following should work to install MDAnalysis:
-```shell
-MACOSX_DEPLOYMENT_TARGET=10.14 pypy3 -m pip install 'scipy<1.3.0'
-pypy3 -m pip install MDAnalysis
-```
+1. Install openblas using homebrew:
 
-Unfortunately there is still another bug in MDAnalysis when using PyPy. However, this is fixed (together
-with the issue that `from scipy.spatial import cKDTree` must be called twice), when importing the package 
-in the [`src/input_output_handler/mdanalysis_import.py`](src/input_output_handler/mdanalysis_import.py) module.
+    ```shell
+    brew install openblas
+    ```
+    
+    After the installation (or after using `brew info openblas`), homebrew prints openblas' library and include path in 
+    a way similar to
+    
+    ```shell
+    For compilers to find openblas you may need to set:
+        export LDFLAGS="-L/usr/local/opt/openblas/lib"
+        export CPPFLAGS="-I/usr/local/opt/openblas/include"
+    ```
+    
+    These flags are used in the next step.
+
+
+2. Use openblas' flags from step one to install SciPy with the following command:
+
+    ```shell
+    LDFLAGS="-L/usr/local/opt/openblas/lib" CPPFLAGS="-I/usr/local/opt/openblas/include" pypy3 -m pip install 'scipy==1.2.3'
+    ``` 
+
+Unfortunately there is still another bug in MDAnalysis when using PyPy. However, this is fixed when importing the 
+package in the 
+[`jellyfysh.input_output_handler.mdanalysis_import`](jellyfysh/input_output_handler/mdanalysis_import.py) 
+module (for a more detailed description of the bug, see the same file).
 
 ### Dill for Python version >= 3.7
 In newer versions of Python, abstract classes can no longer be pickled. Therefore, Dill cannot be used

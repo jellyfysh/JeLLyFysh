@@ -8,21 +8,23 @@ master branch and add your name to the [AUTHORS.md](AUTHORS.md) file. In additio
 history of the repository.
 
 For successful pull requests make sure you follow the following points:
+
 - Follow the coding style described below.
 - Test your code.
 - Run the unittests as described in the [README.md](README.md) file.
 - Read the [code of conduct](CODE_OF_CONDUCT.md).
-- Include the following licence notice at the top of any new file:
+- Include the following license notice at the top of any new file:
+
 ```Python3
 # JeLLFysh - a Python application for all-atom event-chain Monte Carlo - https://github.com/jellyfysh
-# Copyright (C) 2019 The JeLLyFysh organization
-# (see the AUTHORS file for the full list of authors)
+# Copyright (C) 2019, 2022 The JeLLyFysh organization
+# (See the AUTHORS.md file for the full list of authors.)
 #
 # This file is part of JeLLyFysh.
 #
 # JeLLyFysh is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
-# License as published by the Free Software Foundation, either > version 3 of the License, or (at your option) any
-# later version.
+# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
+# version.
 #
 # JeLLyFysh is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 # warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
@@ -30,10 +32,10 @@ For successful pull requests make sure you follow the following points:
 # You should have received a copy of the GNU General Public License along with JeLLyFysh in the LICENSE file.
 # If not, see <https://www.gnu.org/licenses/>.
 #
-# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2019] in References.bib):
-# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, Werner Krauth
+# If you use JeLLyFysh in published work, please cite the following reference (see [Hoellmer2020] in References.bib):
+# Philipp Hoellmer, Liang Qin, Michael F. Faulkner, A. C. Maggs, and Werner Krauth,
 # JeLLyFysh-Version1.0 -- a Python application for all-atom event-chain Monte Carlo,
-# arXiv e-prints: 1907.12502 (2019), https://arxiv.org/abs/1907.12502
+# Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 ```
 
@@ -44,6 +46,6 @@ the line length limit, which is set to 120 characters. Indent your code with 4 s
 [PEP257](https://www.python.org/dev/peps/pep-0257/) conventions for docstrings. We use the 
 [NumPy style](https://numpydoc.readthedocs.io/en/latest/format.html) for the docstrings.
 
-The code must be compatible with any Python version >= 3.5 and should be runnable with PyPy version >= 7.
+The code must be compatible with any Python version >= 3.6 and should be runnable with PyPy version >= 7.
 
 It goes without saying that we will be happy to assist contributors during the course of their first few pull requests :).
