@@ -23,8 +23,8 @@
  ************************************************************************************************************************/
 
 /** @file merged_image_coulomb_potential.h
- *  @brief Declarations of functions to compute the space derivative of the merged image coulomb potential along the
- *         positive x direction.
+ *  @brief Declarations of functions to compute the directional time derivative of the merged image coulomb potential
+ *         along a given velocity vector of the active unit.
  *
  *  @author The JeLLyFysh organization.
  *  @bug No known bugs.
@@ -34,6 +34,18 @@
 
 #include <stddef.h> // For size_t.
 
+/** @brief Struct that stores a three-dimensional gradient.
+ *
+ * Note that using a fixed-size array in this struct (which indirectly allows to return such an array, see
+ * https://stackoverflow.com/questions/29088462/why-you-cannot-return-fixed-size-const-array-in-c) led to a bug on
+ * some operating systems.
+ */
+struct Gradient {
+    /** The components of the three-dimensional gradient. */
+    double gx;
+    double gy;
+    double gz;
+};
 struct MergedImageCoulombPotential;
 
 struct MergedImageCoulombPotential *construct_merged_image_coulomb_potential(int fourier_cutoff, int position_cutoff,
@@ -41,6 +53,8 @@ struct MergedImageCoulombPotential *construct_merged_image_coulomb_potential(int
 void destroy_merged_image_coulomb_potential(struct MergedImageCoulombPotential *potential);
 size_t estimated_size(struct MergedImageCoulombPotential *potential);
 struct MergedImageCoulombPotential *copy_merged_image_coulomb_potential(struct MergedImageCoulombPotential *pot);
-double derivative(struct MergedImageCoulombPotential *potential, double sx, double sy, double sz);
+
+struct Gradient gradient(struct MergedImageCoulombPotential *potential, double separation[3]);
+double derivative(struct MergedImageCoulombPotential *potential, double velocity[3], double separation[3]);
 
 #endif // MERGED_IMAGE_COULOMB_POTENTIAL_H

@@ -145,7 +145,7 @@ setup(
     # Adding setuptools_scm to setup_requires achieves that all files tracked by git are automatically added
     include_package_data=True,
     setup_requires=["wheel", "setuptools_scm", "cffi>=1.13.2"],
-    install_requires=["cffi>=1.13.2", "dill>=0.3.1.1"],
+    install_requires=["cffi>=1.13.2", "cloudpickle>=2.2.1"],
     cffi_modules=[
         "jellyfysh/potential/merged_image_coulomb_potential/merged_image_coulomb_potential_build.py:ffi_builder",
         "jellyfysh/potential/inverse_power_coulomb_bounding_potential/"

@@ -26,7 +26,7 @@ from .cell_bounding_potential_event_handler import CellBoundingPotentialEventHan
 from .cell_veto_event_handler import CellVetoEventHandler
 from .composite_objects import CompositeObjectsEventHandler, CompositeObjectsLifting
 from .dumping_event_handler import DumpingEventHandler
-from .end_of_chain_event_handler import EndOfChainEventHandler
+from .end_of_chain_event_handler import EndOfChainEventHandler, NewtonianEndOfChainEventHandler
 from .end_of_run_event_handler import EndOfRunEventHandler
 from .event_handler_with_bounding_potential import (EventHandlerWithBoundingPotential,
                                                     TwoCompositeObjectBoundingPotentialEventHandler,

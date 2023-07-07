@@ -23,7 +23,7 @@
 import logging
 import random
 import sys
-import dill
+import cloudpickle
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
 import jellyfysh.base.uuid as uuid
@@ -37,7 +37,7 @@ class DumpingOutputHandler(OutputHandler):
     Output handler which dumps an entire run into a file.
 
     The run is dumped by dumping the mediator, the state of the random module and the setting package to a file using
-    the dill package. The file can be used in resume.py to resume the run starting from the dumped configuration.
+    the cloudpickle package. The file can be used in resume.py to resume the run starting from the dumped configuration.
     The run can only be resumed using the same python implementation and version. These are included in the filename
     of the dumping file.
     """
@@ -87,7 +87,8 @@ class DumpingOutputHandler(OutputHandler):
                                "object. Make sure that this output handler is connected to the DumpingEventHandler."
                                .format(self.__class__.__name__))
         with open(self._output_filename, "wb") as file:
-            dill.dump([mediator, setting, uuid, random.getstate()], file)
+            cloudpickle.dump([mediator, setting.getstate(), uuid.getstate(), random.getstate()], file)
+        # sys.exit(2)
 
     def post_run(self) -> None:
         """Clean up the output handler."""

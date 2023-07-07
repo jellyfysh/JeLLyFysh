@@ -22,7 +22,8 @@
 """Module for abstract potential classes."""
 from abc import ABCMeta, abstractmethod
 import inspect
-from typing import Any, MutableSequence, Sequence, Tuple
+from math import sqrt
+from typing import Any, Sequence, Tuple
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base import vectors
 from .potential import Potential, InvertiblePotential
@@ -282,15 +283,12 @@ class StandardVelocityInvertiblePotential(StandardVelocityPotential, InvertibleP
 
 
 # noinspection PyMethodOverriding
-class MexicanHatPotential(StandardVelocityInvertiblePotential, metaclass=ABCMeta):
+class MexicanHatPotential(InvertiblePotential, metaclass=ABCMeta):
     """
-    Abstract class for invertible standard velocity potentials which are shaped like a mexican hat.
+    Abstract class for invertible potentials which are shaped like a mexican hat.
 
-    This potential only allows for standard velocities (i.e., velocities parallel to one of the cartesian coordinate
-    axes going in the positive direction) of the active unit.
-
-    A mexican hat potential depends on a single separation and is characterized by an absolute value separation
-    |r_ij| = |r_j - r_i| = r_0 where the potential has a minimum. Therefore the potential is monotonically decreasing
+    A mexican hat potential depends on on a single separation and is characterized by an equilibrium separation
+    |r_ij| = |r_j - r_i| = r_0 where the potential has a minimum. Therefore, the potential is monotonically decreasing
     within the range [0, r_0] for the absolute values of the separation and monotonically increasing for absolute values
     of the separation which are larger than r_0. To enforce that, the general multiplicative prefactor should be greater
     than zero. This class assumes that i is the active unit.
@@ -325,6 +323,7 @@ class MexicanHatPotential(StandardVelocityInvertiblePotential, metaclass=ABCMeta
         super().__init__(prefactor=prefactor, **kwargs)
         self._equilibrium_separation = equilibrium_separation
         self._equilibrium_separation_squared = equilibrium_separation ** 2
+        self._minimum_potential = self._potential(self._equilibrium_separation)
         if not self._prefactor > 0.0:
             raise ConfigurationError("The potential {0} can only be used for cases "
                                      "where the prefactor"
@@ -333,21 +332,20 @@ class MexicanHatPotential(StandardVelocityInvertiblePotential, metaclass=ABCMeta
             raise ConfigurationError("The potential {0} can only be used for an equilibrium separation which is greater"
                                      " than 0.0!".format(self.__class__.__name__))
 
-    def standard_velocity_displacement(self, direction: int, separation: MutableSequence[float],
-                                       potential_change: float) -> float:
+    def displacement(self, velocity: Sequence[float], separation: Sequence[float], potential_change: float) -> float:
         """
-        Return the required displacement in space of the active unit along the positive direction of motion parallel to
-        one of the cartesian axes where the cumulative event rate of the potential equals the given potential change.
+        Return the required time displacement of the active unit along its velocity where the cumulative event rate of
+        the potential equals the given potential change.
 
-        This method determines whether the active unit is behind or in front of the target unit, and whether the
-        the absolute value of the separation is larger than r_0 ('outside sphere') or smaller ('inside sphere').
-        This is used to call one of the four corresponding methods.
+        This method determines whether the movement of the active unit lets the separation become smaller ('behind') or
+        bigger ('front'), and whether the the absolute value of the separation is larger than r_0 ('outside sphere') or
+        smaller ('inside sphere'). This is used to call one of the four corresponding methods.
 
         Parameters
         ----------
-        direction : int
-            The direction of motion of the active unit i.
-        separation : MutableSequence[float]
+        velocity : Sequence[float]
+            The velocity of the active unit.
+        separation : Sequence[float]
             The separation vector r_ij.
         potential_change : float
             The sampled potential change.
@@ -355,109 +353,81 @@ class MexicanHatPotential(StandardVelocityInvertiblePotential, metaclass=ABCMeta
         Returns
         -------
         float
-            The required displacement in space of the active unit along its direction of motion where the cumulative
-            event rate equals the sampled potential change.
+            The required time displacement of the active unit along its velocity where the cumulative event rate equals
+            the sampled potential change.
+
+        Raises
+        ------
+        AssertionError
+            If the velocity is zero.
         """
-        norm_of_separation = vectors.norm(separation)
-        # Active unit is outside of the minimum potential shell
-        if norm_of_separation >= self._equilibrium_separation:
-            # Active unit is in front of target unit
-            if separation[direction] <= 0.0:
-                current_potential = self._potential(separation)
-                displacement = self._displacement_front_outside_sphere(
-                    direction, current_potential, potential_change, separation)
-            # Active unit is behind of target unit
+        assert any(entry != 0.0 for entry in velocity)
+        velocity_squared = vectors.norm_sq(velocity)
+        separation_squared = vectors.norm_sq(separation)
+        separation_dot_velocity = vectors.dot(separation, velocity)
+        # Active unit is outside of the minimum potential shell.
+        if separation_squared >= self._equilibrium_separation_squared:
+            # Norm of separation becomes bigger.
+            if separation_dot_velocity <= 0.0:
+                return self._displacement_front_outside_sphere(
+                    velocity_squared, separation_squared, separation_dot_velocity,
+                    self._potential(sqrt(separation_squared)), potential_change)
+            # Norm of separation becomes smaller.
             else:
-                displacement = self._displacement_behind_outside_sphere(direction, potential_change, separation)
+                return self._displacement_behind_outside_sphere(
+                    velocity_squared, separation_squared, separation_dot_velocity, potential_change)
         # Active unit is inside of the minimum potential shell
         else:
-            # Active unit is in front of target unit
-            if separation[direction] <= 0.0:
-                displacement = self._displacement_front_inside_sphere(direction, potential_change, separation)
-            # Active unit is behind of target unit
+            # Norm of separation becomes bigger.
+            if separation_dot_velocity <= 0.0:
+                return self._displacement_front_inside_sphere(
+                    velocity_squared, separation_squared, separation_dot_velocity, potential_change)
+            # Norm of separation becomes smaller.
             else:
-                current_potential = self._potential(separation)
-                displacement = self._displacement_behind_inside_sphere(
-                    direction, current_potential, potential_change, separation)
-        return displacement
+                return self._displacement_behind_inside_sphere(
+                    velocity_squared, separation_squared, separation_dot_velocity,
+                    self._potential(sqrt(separation_squared)), potential_change)
 
-    def _displacement_front_outside_sphere(self, direction: int, current_potential: float, potential_change: float,
-                                           separation: Sequence[float]) -> float:
+    def _displacement_front_outside_sphere(self, velocity_squared: float, separation_squared: float,
+                                           separation_dot_velocity: float, current_potential: float,
+                                           potential_change: float) -> float:
         """
-        Return the displacement of the active unit i until the cumulative event rate of the potential equals the given
-        potential change, for the case of the active unit in front and outside the potential minimum sphere.
+        Return the required time displacement of the active unit i along its velocity until the cumulative event rate of
+        the potential equals the given potential change, for the case of the active unit in front and outside the
+        potential minimum sphere.
 
-        This method determines how far the active unit can climb the potential.
+        This method determines how far the active unit can climb the potential hill.
 
         Parameters
         ----------
-        direction : int
-            The direction of motion of the active unit i.
+        velocity_squared : float
+            The square of velocity of the active unit i.
+        separation_squared : float
+            The square of the separation vector r_ij.
+        separation_dot_velocity : float
+            The dot product of the separation vector r_ij and the velocity vector of the active unit i.
         current_potential : float
             The potential at the separation r_ij.
         potential_change : float
             The sampled potential change.
-        separation : MutableSequence[float]
-            The separation vector r_ij.
 
         Returns
         -------
         float
-            The displacement of the active unit i where the cumulative event rate equals the sampled potential change.
+            The time displacement of the active unit i where the cumulative event rate equals the sampled potential
+            change.
         """
         norm_of_new_separation = self._invert_potential_outside_minimum(current_potential + potential_change)
-        return vectors.displacement_until_new_norm_sq_component_negative(
-            separation, norm_of_new_separation * norm_of_new_separation, direction)
+        sqrt_term = (separation_dot_velocity * separation_dot_velocity
+                     - velocity_squared * (separation_squared - norm_of_new_separation * norm_of_new_separation))
+        return (separation_dot_velocity + sqrt(sqrt_term)) / velocity_squared
 
-    def _displacement_behind_outside_sphere(self, direction: int, potential_change: float,
-                                            separation: MutableSequence[float]) -> float:
+    def _displacement_front_inside_sphere(self, velocity_squared: float, separation_squared: float,
+                                          separation_dot_velocity: float, potential_change: float) -> float:
         """
-        Return the displacement of the active unit i until the cumulative event rate of the potential equals the given
-        potential change, for the case of the active unit behind and outside the potential minimum sphere.
-
-        This method checks if the active unit can reach the potential minimum sphere. If so, the active unit can be
-        placed on the edge (the derivative of the potential is negative until there). Then the method corresponding
-        to the case where the active unit is behind and inside the sphere is used.
-        If the active unit cannot reach the potential minimum sphere, the derivative is negative until the active unit
-        is at the same level as the target unit. Then the method for the case where the active unit is in front and
-        outside the sphere is used.
-
-        Parameters
-        ----------
-        direction : int
-            The direction of motion of the active unit i.
-        potential_change : float
-            The sampled potential change.
-        separation : MutableSequence[float]
-            The separation vector r_ij.
-
-        Returns
-        -------
-        float
-            The displacement of the active unit i where the cumulative event rate equals the sampled potential change.
-        """
-        # Active unit can reach potential minimum sphere
-        try:
-            displacement = vectors.displacement_until_new_norm_sq_component_positive(
-                separation, self._equilibrium_separation_squared, direction)
-            separation[direction] -= displacement
-            current_potential = self._potential(separation)
-            displacement += self._displacement_behind_inside_sphere(
-                direction, current_potential, potential_change, separation)
-        # Active unit cannot reach potential minimum sphere
-        except ValueError:
-            displacement = separation[direction]
-            separation[direction] = 0.0
-            current_potential = self._potential(separation)
-            displacement += self._displacement_front_outside_sphere(
-                direction, current_potential, potential_change, separation)
-        return displacement
-
-    def _displacement_front_inside_sphere(self, direction: int, potential_change: float,
-                                          separation: Sequence[float]) -> float:
-        """
-        Return the displacement of the active unit i until the cumulative event rate of the potential equals the given
-        potential change, for the case of the active unit in front and inside the potential minimum sphere.
+        Return the required time displacement of the active unit i along its velocity until the cumulative event rate of
+        the potential equals the given potential change, for the case of the active unit in front and inside the
+        potential minimum sphere.
 
         This method places the active unit on the edge of the potential minimum sphere (the derivative of the potential
         is negative until there). Then the method for the case where the active unit is in front and
@@ -465,79 +435,134 @@ class MexicanHatPotential(StandardVelocityInvertiblePotential, metaclass=ABCMeta
 
         Parameters
         ----------
-        direction : int
-            The direction of motion of the active unit i.
+        velocity_squared : float
+            The square of velocity of the active unit i.
+        separation_squared : float
+            The square of the separation vector r_ij.
+        separation_dot_velocity : float
+            The dot product of the separation vector r_ij and the velocity vector of the active unit i.
         potential_change : float
             The sampled potential change.
-        separation : MutableSequence[float]
-            The separation vector r_ij.
 
         Returns
         -------
         float
-            The displacement of the active unit i where the cumulative event rate equals the sampled potential change.
+            The time displacement of the active unit i where the cumulative event rate equals the sampled potential
+            change.
         """
-        displacement = vectors.displacement_until_new_norm_sq_component_negative(
-            separation, self._equilibrium_separation_squared, direction)
-        separation[direction] -= displacement
-        # Use the sampled potential change to travel uphill
-        current_potential = self._potential(separation)
-        displacement += self._displacement_front_outside_sphere(
-            direction, current_potential, potential_change, separation)
-        return displacement
+        sqrt_term = (separation_dot_velocity * separation_dot_velocity
+                     - velocity_squared * (separation_squared - self._equilibrium_separation_squared))
+        displacement = (separation_dot_velocity + sqrt(sqrt_term)) / velocity_squared
+        return displacement + self._displacement_front_outside_sphere(
+            velocity_squared, self._equilibrium_separation_squared,
+            separation_dot_velocity - displacement * velocity_squared, self._minimum_potential, potential_change)
 
-    def _displacement_behind_inside_sphere(self, direction: int, current_potential: float, potential_change: float,
-                                           separation: MutableSequence[float]) -> float:
+    def _displacement_behind_inside_sphere(self, velocity_squared: float, separation_squared: float,
+                                           separation_dot_velocity: float, current_potential: float,
+                                           potential_change: float) -> float:
         """
-        Return the displacement of the active unit i until the cumulative event rate of the potential equals the given
-        potential change, for the case of the active unit behind and inside the potential minimum sphere.
+        Return the required time displacement of the active unit i along its velocity until the cumulative event rate of
+        the potential equals the given potential change, for the case of the active unit behind and inside the potential
+        minimum sphere.
 
         First, this method determines how far the active unit can climb the potential hill inside the sphere. If it
-        cannot climb the full hill, the displacement is returned. If it can, the active unit can be placed on the edge
-        of the potential minimum sphere (the derivative of the potential is negative until there). Then the method for
-        the case where the active unit is in front and outside the sphere is used.
+        cannot climb the full hill, the corresponding displacement is returned. If it can, the active unit can be placed
+        on the edge of the potential minimum sphere (the derivative of the potential is negative until there). Then the
+        method for the case where the active unit is in front and outside the sphere is used.
 
         Parameters
         ----------
-        direction : int
-            The direction of motion of the active unit i.
+        velocity_squared : float
+            The square of velocity of the active unit i.
+        separation_squared : float
+            The square of the separation vector r_ij.
+        separation_dot_velocity : float
+            The dot product of the separation vector r_ij and the velocity vector of the active unit i.
         current_potential : float
             The potential at the separation r_ij.
         potential_change : float
             The sampled potential change.
-        separation : MutableSequence[float]
-            The separation vector r_ij.
 
         Returns
         -------
         float
-            The displacement of the active unit i where the cumulative event rate equals the sampled potential change.
+            The time displacement of the active unit i where the cumulative event rate equals the sampled potential
+            change.
         """
-        separation_at_maximum_inside = vectors.copy_vector_with_replaced_component(separation, direction, 0.0)
-        maximum_potential_inside = self._potential(separation_at_maximum_inside)
+        max_displacement = separation_dot_velocity / velocity_squared
+        minimum_separation_squared = separation_squared - max_displacement * max_displacement * velocity_squared
+        maximum_potential_inside = self._potential(sqrt(minimum_separation_squared))
         potential_difference = maximum_potential_inside - current_potential
-        # Active unit cannot climb potential hill
+        # Active unit cannot climb potential hill.
         if potential_change < potential_difference:
             norm_of_new_separation = self._invert_potential_inside_minimum(
                 current_potential + potential_change)
-            displacement = vectors.displacement_until_new_norm_sq_component_positive(
-                separation, norm_of_new_separation * norm_of_new_separation, direction)
+            sqrt_term = (separation_dot_velocity * separation_dot_velocity
+                         - velocity_squared * (separation_squared - norm_of_new_separation * norm_of_new_separation))
+            return (separation_dot_velocity - sqrt(sqrt_term)) / velocity_squared
+        # Active unit can climb potential hill.
         else:
-            displacement = separation[direction]
-            separation[direction] = 0.0
-            potential_change -= potential_difference
-            displacement += self._displacement_front_inside_sphere(direction, potential_change, separation)
-        return displacement
+            return max_displacement + self._displacement_front_inside_sphere(
+                velocity_squared, minimum_separation_squared,
+                separation_dot_velocity - max_displacement * velocity_squared, potential_change - potential_difference)
 
-    @abstractmethod
-    def _potential(self, separation: Sequence[float]) -> float:
+    def _displacement_behind_outside_sphere(self, velocity_squared: float, separation_squared: float,
+                                            separation_dot_velocity: float, potential_change: float) -> float:
         """
-        Return the potential for the given separation.
+        Return the required time displacement of the active unit i along its velocity until the cumulative event rate of
+        the potential equals the given potential change, for the case of the active unit behind and outside the
+        potential minimum sphere.
+
+        This method checks if the active unit can reach the potential minimum sphere. If so, the active unit can be
+        placed on the edge (the derivative of the potential is negative until there). Then the method corresponding
+        to the case where the active unit is behind and inside the sphere is used.
+        If the active unit cannot reach the potential minimum sphere, the derivative is negative until the smallest
+        possible separation is reached. Then the method for the case where the active unit is in front and
+        outside the sphere is used.
 
         Parameters
         ----------
-        separation : Sequence[float]
-            The separation vector r_ij.
+        velocity_squared : float
+            The square of velocity of the active unit i.
+        separation_squared : float
+            The square of the separation vector r_ij.
+        separation_dot_velocity : float
+            The dot product of the separation vector r_ij and the velocity vector of the active unit i.
+        potential_change : float
+            The sampled potential change.
+
+        Returns
+        -------
+        float
+            The time displacement of the active unit i where the cumulative event rate equals the sampled potential
+            change.
+        """
+        sqrt_term = (separation_dot_velocity * separation_dot_velocity
+                     - velocity_squared * (separation_squared - self._equilibrium_separation_squared))
+        # Active unit can reach potential minimum sphere
+        if sqrt_term >= 0.0:
+            displacement = (separation_dot_velocity - sqrt(sqrt_term)) / velocity_squared
+            return displacement + self._displacement_behind_inside_sphere(
+                velocity_squared, self._equilibrium_separation_squared,
+                separation_dot_velocity - displacement * velocity_squared, self._minimum_potential, potential_change)
+        # Active unit cannot reach potential minimum sphere.
+        else:
+            displacement = separation_dot_velocity / velocity_squared
+            minimum_separation_squared = separation_squared - displacement * displacement * velocity_squared
+            minimum_potential = self._potential(sqrt(minimum_separation_squared))
+            return displacement + self._displacement_front_outside_sphere(
+                velocity_squared, minimum_separation_squared, separation_dot_velocity - displacement * velocity_squared,
+                minimum_potential, potential_change)
+
+    @abstractmethod
+    def _potential(self, norm_of_separation: float) -> float:
+        """
+        Return the potential for the given absolute value of the separation.
+
+        Parameters
+        ----------
+        norm_of_separation : float
+            The absolute value |r_ij| of the separation vector.
 
         Returns
         -------

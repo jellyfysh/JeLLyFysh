@@ -25,17 +25,18 @@ import logging
 from typing import Any, Mapping, MutableMapping, Sequence
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
-from jellyfysh.base.vectors import permutation_3d
-from jellyfysh.potential.abstracts import StandardVelocityPotential
+from jellyfysh.potential import Potential
 from jellyfysh.setting import hypercubic_setting as setting
 # noinspection PyUnresolvedReferences
 from ._merged_image_coulomb_potential import ffi, lib
 
 # Directly import C functions used in performance relevant parts of the code.
 _lib_derivative = lib.derivative
+_lib_gradient = lib.gradient
 
 
-class MergedImageCoulombPotential(StandardVelocityPotential):
+# noinspection PyMethodOverriding
+class MergedImageCoulombPotential(Potential):
     r"""
     This class implements the merged image Coulomb pair potential
     U_ij = k * c_i * c_j * \sum_{\vec{n}\in\mathbb{Z}^3} 1/ (|\vec{r_ij}+\vec{n}L|).
@@ -48,12 +49,10 @@ class MergedImageCoulombPotential(StandardVelocityPotential):
     the sum is absolutely convergent. Ewald summation splits the sum up partly in position space and partly in Fourier
     space (see [Faulkner2018] in References.bib). The summation has three parameters, namely the cutoff in Fourier
     space, the cutoff in position space and a convergence factor alpha, which balances the converging speeds of the two
-    sums.
+    sums. (Note that the alpha in this class is connected to the alpha' in eqs. (60) and (61) in [Faulkner2018] via
+    alpha' = alpha / system_length.)
 
-    This potential only allows for standard velocities (i.e., velocities parallel to one of the cartesian coordinate
-    axes going in the positive direction) of the active unit.
-
-    The standard_velocity_derivative method uses C code that is stored in the files merged_image_coulomb_potential.c and
+    The derivative method uses C code that is stored in the files merged_image_coulomb_potential.c and
     merged_image_coulomb_potential.h. The cffi package is used to call the C code. The executable module
     merged_image_coulomb_potential_build.py can be used to compile the C code and to create the necessary files.
     """
@@ -91,6 +90,8 @@ class MergedImageCoulombPotential(StandardVelocityPotential):
         MemoryError
             If the C code fails to allocate memory.
         """
+        self.init_arguments = lambda: {"alpha": alpha, "fourier_cutoff": fourier_cutoff,
+                                       "position_cutoff": position_cutoff, "prefactor": prefactor}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            alpha=alpha, fourier_cutoff=fourier_cutoff, position_cutoff=position_cutoff,
                            prefactor=prefactor)
@@ -124,20 +125,49 @@ class MergedImageCoulombPotential(StandardVelocityPotential):
         self._potential = ffi.gc(c_potential, lib.destroy_merged_image_coulomb_potential,
                                  size=lib.estimated_size(c_potential))
 
-    # noinspection PyMethodOverriding
-    def standard_velocity_derivative(self, direction: int, separation: Sequence[float], charge_one: float,
-                                     charge_two: float) -> float:
-        """
-        Return the space derivative of the potential along a positive direction parallel to one of the cartesian axes
-        for the given separations and charges.
+    def init_arguments(self):
+        raise NotImplementedError
 
-        Note that the derivative function written in C always computes the space derivative in x direction. The
-        separation vector is therefore permuted before the function is called.
+    def gradient(self, separation: Sequence[float], charge_one: float, charge_two: float) -> Sequence[float]:
+        """
+        Return the gradient of the potential evaluated at the given separation and for the given charges.
 
         Parameters
         ----------
-        direction : int
-            The direction of the derivative.
+        separation : Sequence[float]
+            The separation vector r_ij.
+        charge_one : float
+            The charge c_i.
+        charge_two : float
+            The charge c_j.
+
+        Returns
+        -------
+        Sequence[float]
+            The gradient with respect to the position r_i of the active unit.
+
+        Raises
+        ------
+        AssertionError
+            If the given separation vector is not the shortest separation with periodic boundary conditions.
+        """
+        assert all(abs(s) <= setting.system_length_over_two for s in separation)
+        # The _lib_gradient C function returns a struct that contains a member called gradient of type double[3]. We can
+        # simply iterate over this array to get the result in a Python list.
+        prefactor = self._prefactor * charge_one * charge_two
+        gradient = _lib_gradient(self._potential, separation)
+        return [prefactor * gradient.gx, prefactor * gradient.gy, prefactor * gradient.gz]
+
+    def derivative(self, velocity: Sequence[float], separation: Sequence[float], charge_one: float,
+                   charge_two: float) -> float:
+        """
+        Return the directional time derivative along a given velocity vector of the active unit for the given
+        separations and charges.
+
+        Parameters
+        ----------
+        velocity : Sequence[float]
+            The velocity of the active unit along which the directional derivative is computed.
         separation : Sequence[float]
             The separation vector r_ij.
         charge_one : float
@@ -148,10 +178,15 @@ class MergedImageCoulombPotential(StandardVelocityPotential):
         Returns
         -------
         float
-            The space derivative.
+            The directional time derivative.
+
+        Raises
+        ------
+        AssertionError
+            If the velocity is zero.
         """
-        separation = permutation_3d(separation, direction)
-        return self._prefactor * charge_one * charge_two * _lib_derivative(self._potential, *separation)
+        assert any(entry != 0.0 for entry in velocity)
+        return self._prefactor * charge_one * charge_two * _lib_derivative(self._potential, velocity, separation)
 
     def __copy__(self) -> 'MergedImageCoulombPotential':
         """
@@ -182,8 +217,9 @@ class MergedImageCoulombPotential(StandardVelocityPotential):
 
         Parameters
         ----------
-        memodict : Mapping[int, Any]
+        memodict : MutableMapping[int, Any]
             The memo dictionary.
+
         Returns
         -------
         MergedImageCoulombPotential

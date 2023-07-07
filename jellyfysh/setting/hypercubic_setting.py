@@ -30,7 +30,7 @@ class will initialize the setting package and this module properly. Also, the hy
 import logging
 import random
 import sys
-from typing import List, MutableSequence, Sequence
+from typing import Any, List, MutableMapping, MutableSequence, Sequence
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.setting import hypercuboid_setting
 from .periodic_boundaries import PeriodicBoundaries
@@ -114,6 +114,7 @@ class HypercubicPeriodicBoundaries(PeriodicBoundaries):
         float
             The position entry corrected for periodic boundaries.
         """
+        # noinspection PyTypeChecker
         return position_entry % system_length
 
     @staticmethod
@@ -135,6 +136,7 @@ class HypercubicPeriodicBoundaries(PeriodicBoundaries):
             The shortest separation vector target_position - reference_position, possibly corrected for periodic
             boundaries.
         """
+        # noinspection PyTypeChecker
         separation = [target_position[index] - reference_position[index] for index in range(dimension)]
         HypercubicPeriodicBoundaries.correct_separation(separation)
         return separation
@@ -169,6 +171,7 @@ class HypercubicPeriodicBoundaries(PeriodicBoundaries):
         float
             The separation entry corrected for periodic boundaries.
         """
+        # noinspection PyTypeChecker
         return (separation_entry + system_length_over_two) % system_length - system_length_over_two
 
     @staticmethod
@@ -188,6 +191,7 @@ class HypercubicPeriodicBoundaries(PeriodicBoundaries):
         float
             The position entry translated in the next image in the given direction.
         """
+        # noinspection PyTypeChecker
         return position_entry + system_length
 
 
@@ -285,6 +289,45 @@ def _set_similar_settings(wanted_system_length: float) -> None:
         raise AttributeError("System length must be greater than 0.0")
     hypercuboid_setting.system_lengths = tuple(wanted_system_length for _ in range(dimension))
     hypercuboid_setting.system_lengths_over_two = tuple(wanted_system_length / 2.0 for _ in range(dimension))
+
+
+def getstate() -> MutableMapping[str, Any]:
+    """
+    Return a state of this module that can be pickled.
+
+    This function only stores the global variable system_length that is required for the initialization of the
+    HypercubicSetting setter class. The other global variables beta, dimension, number_of_root_nodes,
+    number_of_nodes_per_root_node, and number_of_node_levels are only copies from the setting module and are considered
+    in its getstate function.
+
+    Returns
+    -------
+    MutableMapping[str, Any]
+        The state that can be pickled.
+    """
+    return {"system_length": system_length}
+
+
+def setstate(state: MutableMapping[str, Any]) -> None:
+    """
+    Use the state dictionary to initialize this module.
+
+    This function calls the HypercubicSetting setter class.
+
+    Parameters
+    ----------
+    state : MutableMapping[str, Any]
+        The state.
+
+    Raises
+    ------
+    AssertionError
+        If the state dictionary misses necessary keys for the initialization of this module.
+    """
+    assert "beta" in state
+    assert "dimension" in state
+    assert "system_length" in state
+    HypercubicSetting(beta=state["beta"], dimension=state["dimension"], system_length=state["system_length"])
 
 
 def reset() -> None:

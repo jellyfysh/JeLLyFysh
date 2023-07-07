@@ -81,6 +81,10 @@ class DipoleMonteCarloEstimator(Estimator):
             If the potential derivative method does not expect exactly one separation.
             If the potential derivative method does not expect exactly two charges.
         """
+        self.init_arguments = lambda: {
+            "potential": (potential.__class__.__name__, potential.init_arguments()),
+            "dipole_separation": dipole_separation, "prefactor": prefactor, "empirical_bound": empirical_bound,
+            "number_trials": number_trials, "dipole_charge": dipole_charge, "periodic_boundaries": periodic_boundaries}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            potential=potential.__class__.__name__, dipole_separation=dipole_separation,
                            prefactor=prefactor, empirical_bound=empirical_bound, number_trials=number_trials,
@@ -97,7 +101,10 @@ class DipoleMonteCarloEstimator(Estimator):
             raise ConfigurationError("The estimator {0} expects a potential "
                                      "which handles exactly two charges!".format(self.__class__.__name__))
 
-    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: int,
+    def init_arguments(self):
+        raise NotImplementedError
+
+    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: Sequence[float],
                          calculate_lower_bound: bool = False) -> List[float]:
         """
         Estimate an upper and an optional lower bound of the potential's space derivative along the given direction
@@ -143,8 +150,8 @@ class DipoleMonteCarloEstimator(Estimator):
                          for d in range(setting.dimension)]
             self._correct_separation(position1)
             self._correct_separation(position2)
-            derivative1 = self._potential_derivative(direction, position1, 1.0, self._dipole_charge)
-            derivative2 = self._potential_derivative(direction, position2, 1.0, -self._dipole_charge)
+            derivative1 = self._potential.derivative(direction, position1, 1.0, self._dipole_charge)
+            derivative2 = self._potential.derivative(direction, position2, 1.0, -self._dipole_charge)
             upper_bound = max(upper_bound, abs(derivative1 + derivative2))
 
         upper_bound *= self._prefactor

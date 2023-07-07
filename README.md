@@ -1,6 +1,22 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-v1.4%20adopted-ff69b4.svg)](CODE_OF_CONDUCT.md)
 
+This is the 2.0-alpha version of JeLLyFysh. It implements the generalized Newtonian event-chain Monte Carlo algorithm, 
+which was introduced in [\[Hoellmer2023\]](https://doi.org/10.48550/arXiv.2305.02979) (based on 
+[\[Klement2019\]](https://doi.org/10.1063/1.5090882) that introduced Newtonian event-chain Monte Carlo for 
+hard spheres). 
+
+This is the version of JeLLyFysh that was used for the simulations in 
+[\[Hoellmer2023\]](https://doi.org/10.48550/arXiv.2305.02979). The code is not properly documented and organized yet. 
+This will be achieved in the final 2.0 version of JeLLyFysh. In contrast to this alpha version that only allows for 
+generalized Newtonian event-chain Monte Carlo, the final 2.0 version will also allow to switch between different 
+event-chain Monte Carlo variants.
+
+All configuration files for the simulations of [\[Hoellmer2023\]](https://doi.org/10.48550/arXiv.2305.02979) are 
+contained in the [jellyfysh/config_files/arXiv_2305_02979](jellyfysh/config_files/arXiv_2305_02979) directory. Besides
+the configuration files for this alpha version of JeLLyFysh, this also includes configuration files for 
+molecular-dynamics simulations in [Lammps](https://www.lammps.org/#gsc.tab=0), and for Metropolis simulations in 
+[DL_MONTE](https://gitlab.com/dl_monte/DL_MONTE-2).
 
 # JeLLyFysh
 

@@ -21,6 +21,7 @@
 #
 """Module for the TwoLeafUnitEventHandler class."""
 import logging
+from math import copysign, inf
 import random
 from typing import Sequence
 from jellyfysh.base.exceptions import ConfigurationError
@@ -28,7 +29,7 @@ from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base.node import Node
 from jellyfysh.base.time import Time
 from jellyfysh.potential import InvertiblePotential
-import jellyfysh.setting as setting
+import jellyfysh.setting.hypercuboid_setting as setting
 from .abstracts import SingleActiveLeafUnitEventHandler
 
 
@@ -58,7 +59,7 @@ class TwoLeafUnitEventHandler(SingleActiveLeafUnitEventHandler):
     a run of JF.
     """
 
-    def __init__(self, potential: InvertiblePotential, charge: str = None) -> None:
+    def __init__(self, potential: InvertiblePotential, charge: str = None, consider_next_image: bool = True) -> None:
         """
         The constructor of the TwoLeafUnitEventHandler class.
 
@@ -101,8 +102,69 @@ class TwoLeafUnitEventHandler(SingleActiveLeafUnitEventHandler):
                                                                      potential_change=random.expovariate(setting.beta)))
         else:
             self._potential_displacement = self._potential.displacement
+        self._true_event = True
+        self._times_correction_used = 0
+        self._times_event_time_called = 0
+        self._consider_next_image = consider_next_image
+        if not self._consider_next_image:
+            self.send_event_time = self._send_event_time_simple
+        self._lj_changed_image = False
 
     def send_event_time(self, in_state: Sequence[Node]) -> Time:
+        """
+        Return the candidate event time.
+
+        The in-state should consist of all branches of the two leaf units which take part in the interaction treated in
+        this event handler.
+
+        Parameters
+        ----------
+        in_state : Sequence[base.node.Node]
+            The in-state.
+
+        Returns
+        -------
+        base.time.Time
+            The candidate event time.
+
+        Raises
+        ------
+        AssertionError
+            If the in-state does not contain exactly two leaf units.
+        """
+        self._times_event_time_called += 1
+        self._store_in_state(in_state)
+        self._construct_leaf_cnodes()
+        self._extract_active_leaf_unit()
+        assert len(self._leaf_cnodes) == 2
+        separation = setting.periodic_boundaries.separation_vector(
+            self._leaf_units[self._active_leaf_unit_index].position,
+            self._leaf_units[self._active_leaf_unit_index ^ 1].position)
+        total_time_displacement = 0.0
+        while True:
+            min_displacement_until_next_image = min(
+                (s / v + l_over_two / abs(v) if v != 0.0 else inf, i)
+                for i, (s, v, l_over_two)
+                in enumerate(zip(separation, self._active_leaf_unit.velocity, setting.system_lengths_over_two)))
+            time_displacement = self._potential_displacement(
+                self._active_leaf_unit.velocity, separation, *self._charges(self._leaf_units[0], self._leaf_units[1]))
+            if time_displacement <= min_displacement_until_next_image[0]:
+                total_time_displacement += time_displacement
+                self._event_time = self._active_leaf_unit.time_stamp + total_time_displacement
+                self._time_slice_all_units_in_state()
+                return self._event_time
+            else:
+                total_time_displacement += min_displacement_until_next_image[0]
+                for i in range(setting.dimension):
+                    separation[i] -= min_displacement_until_next_image[0] * self._active_leaf_unit.velocity[i]
+                assert abs(abs(separation[min_displacement_until_next_image[1]])
+                           - setting.system_lengths_over_two[min_displacement_until_next_image[1]]) < 1.0e-13
+                separation[min_displacement_until_next_image[1]] = copysign(
+                    setting.system_lengths_over_two[min_displacement_until_next_image[1]],
+                    self._active_leaf_unit.velocity[min_displacement_until_next_image[1]])
+                self._times_correction_used += 1
+
+    def _send_event_time_simple(self, in_state: Sequence[Node]) -> Time:
         """
         Return the candidate event time.
 
@@ -128,11 +190,15 @@ class TwoLeafUnitEventHandler(SingleActiveLeafUnitEventHandler):
         self._construct_leaf_cnodes()
         self._extract_active_leaf_unit()
         assert len(self._leaf_cnodes) == 2
+        separation = setting.periodic_boundaries.separation_vector(
+            self._leaf_units[self._active_leaf_unit_index].position,
+            self._leaf_units[self._active_leaf_unit_index ^ 1].position)
         time_displacement = self._potential_displacement(
-            self._active_leaf_unit.velocity,
-            setting.periodic_boundaries.separation_vector(self._leaf_units[self._active_leaf_unit_index].position,
-                                                          self._leaf_units[self._active_leaf_unit_index ^ 1].position),
-            *self._charges(self._leaf_units[0], self._leaf_units[1]))
+            self._active_leaf_unit.velocity, separation, *self._charges(self._leaf_units[0], self._leaf_units[1]))
+        self._lj_changed_image = any(abs(s + v * time_displacement) > l_over_two
+                                     for s, v, l_over_two
+                                     in zip(separation, self._leaf_units[self._active_leaf_unit_index].velocity,
+                                            setting.system_lengths_over_two))
         self._event_time = self._active_leaf_unit.time_stamp + time_displacement
         self._time_slice_all_units_in_state()
         return self._event_time
@@ -149,6 +215,17 @@ class TwoLeafUnitEventHandler(SingleActiveLeafUnitEventHandler):
         Sequence[base.node.Node]
             The out-state.
         """
-        self._exchange_velocity(self._leaf_cnodes[self._active_leaf_unit_index],
-                                self._leaf_cnodes[self._active_leaf_unit_index ^ 1])
+        if self._lj_changed_image:
+            print("[WARNING]: LJ event that changed image!")
+        self._exchange_velocity(
+            self._leaf_cnodes[self._active_leaf_unit_index], self._leaf_cnodes[self._active_leaf_unit_index ^ 1],
+            self._potential.gradient(setting.periodic_boundaries.separation_vector(
+                self._leaf_units[self._active_leaf_unit_index].position,
+                self._leaf_units[self._active_leaf_unit_index ^ 1].position),
+                *self._charges(self._leaf_units[0], self._leaf_units[1])))
         return self._state
+
+    def info(self):
+        if self._consider_next_image:
+            print(f"Event Handler {self.__class__.__name__} used the correction {self._times_correction_used} times in "
+                  f"{self._times_event_time_called} send_event_time calls.")

@@ -34,8 +34,14 @@ ffi_builder = FFI()
 # Basically duplicates the information in inverse_power_coulomb_bounding_potential.h but is required by cffi.
 # See https://cffi.readthedocs.io/en/latest/overview.html#if-you-don-t-have-an-already-installed-c-library-to-call.
 ffi_builder.cdef(r"""
-double derivative(double prefactor_product, double sx, double sy, double sz);
-double displacement(double prefactor_product, double sx, double sy, double sz, double potential_change,
+struct Gradient {
+    double gx;
+    double gy;
+    double gz;
+};
+double derivative(double prefactor_product, double velocity[3], double separation[3]);
+struct Gradient gradient(double prefactor_product, double separation[3]);
+double displacement(double prefactor_product, double velocity[3], double separation[3], double potential_change,
                     double system_length);
 """)
 

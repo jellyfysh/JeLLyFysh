@@ -155,7 +155,6 @@ class MDAnalysisOutputHandler(OutputHandler, metaclass=ABCMeta):
         raise NotImplementedError
 
     def __getstate__(self) -> MutableMapping[str, Any]:
-        # TODO: Test this pickling once dill is fixed (same for DcdOutputHandler).
         """
         Return a state of this class that can be pickled.
 

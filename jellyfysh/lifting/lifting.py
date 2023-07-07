@@ -84,7 +84,6 @@ class Lifting(metaclass=ABCMeta):
                 self._random_position += random.uniform(0.0, lifting_rate)
             elif not self._active_recorded:
                 self._random_position += lifting_rate
-
         else:
             assert not is_active
             self._negative_lifting_rates.append(-lifting_rate)

@@ -20,7 +20,7 @@
 # Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 """Module for the Particle class."""
-from typing import Mapping, Sequence
+from typing import Optional, Mapping, Sequence
 
 
 class Particle(object):
@@ -49,4 +49,12 @@ class Particle(object):
             A map from the name onto the value of the charge of the particle.
         """
         self.position = position
+        self.charge = charge
+
+
+class NewtonianParticle(object):
+    def __init__(self, position: Sequence[float], velocity: Optional[Sequence[float]],
+                 charge: Mapping[str, float] = None) -> None:
+        self.position = position
+        self.velocity = velocity
         self.charge = charge

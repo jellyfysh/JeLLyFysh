@@ -238,3 +238,26 @@ class EndOfChainEventHandler(LeavesEventHandler, metaclass=ABCMeta):
             The unit identifiers.
         """
         raise NotImplementedError
+
+
+class NewtonianEndOfChainEventHandler(EndOfChainEventHandler, metaclass=ABCMeta):
+    """
+    Abstract end-of-chain event handler for the NewtonianTreeStateHandler.
+
+    The mediator defines a specific mediating method for this class, where the velocities of all leaf units are sampled
+    again from the Maxwell-Boltzmann distribution.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        The constructor of the NewtonianEndOfChainEventHandler class.
+
+        This class is designed for cooperative inheritance, meaning that it passes through all unused kwargs in the
+        init to the next class in the MRO via super.
+
+        Parameters
+        ----------
+        kwargs : Any
+            Additional kwargs which are passed to the __init__ method of the next class in the MRO.
+        """
+        super().__init__(**kwargs)

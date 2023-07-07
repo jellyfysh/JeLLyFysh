@@ -32,6 +32,8 @@ from jellyfysh.base import factory
 from jellyfysh.base.strings import to_camel_case
 from jellyfysh.base.uuid import get_uuid
 import jellyfysh.version as version
+import random
+print(random.getstate())
 
 
 def add_general_parser_arguments(parser: ArgumentParser) -> None:
@@ -145,7 +147,7 @@ def read_config(config_file: str) -> ConfigParser:
     RuntimeError
         If the configuration file does not exist.
     """
-    config = ConfigParser()
+    config = ConfigParser(inline_comment_prefixes=("#", ";"))
     if not config.read(config_file):
         raise RuntimeError("Given configuration file does not exist.")
     return config

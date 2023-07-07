@@ -30,7 +30,7 @@ class will initialize the setting package and this module properly.
 import logging
 import random
 import sys
-from typing import List, MutableSequence, Sequence
+from typing import Any, List, MutableMapping, MutableSequence, Sequence
 from jellyfysh.base.logging import log_init_arguments
 from .periodic_boundaries import PeriodicBoundaries
 from .setting import Setting
@@ -114,6 +114,7 @@ class HypercuboidPeriodicBoundaries(PeriodicBoundaries):
         float
             The position entry corrected for periodic boundaries.
         """
+        # noinspection PyUnresolvedReferences
         return position_entry % system_lengths[index]
 
     @staticmethod
@@ -135,6 +136,7 @@ class HypercuboidPeriodicBoundaries(PeriodicBoundaries):
             The shortest separation vector target_position - reference_position, possibly corrected for periodic
             boundaries.
         """
+        # noinspection PyTypeChecker
         separation = [target_position[index] - reference_position[index] for index in range(dimension)]
         HypercuboidPeriodicBoundaries.correct_separation(separation)
         return separation
@@ -169,6 +171,7 @@ class HypercuboidPeriodicBoundaries(PeriodicBoundaries):
         float
             The separation entry corrected for periodic boundaries.
         """
+        # noinspection PyUnresolvedReferences
         return ((separation_entry + system_lengths_over_two[index]) % system_lengths[index]
                 - system_lengths_over_two[index])
 
@@ -189,6 +192,7 @@ class HypercuboidPeriodicBoundaries(PeriodicBoundaries):
         float
             The position entry translated in the next image in the given direction.
         """
+        # noinspection PyUnresolvedReferences
         return position_entry + system_lengths[direction]
 
 
@@ -228,6 +232,7 @@ class HypercuboidSetting(Setting):
         List[float]
             The random position.
         """
+        # noinspection PyUnresolvedReferences
         return [random.uniform(0.0, system_lengths[index]) for index in range(dimension)]
 
 
@@ -263,6 +268,45 @@ def _set_system_lengths(wanted_system_lengths: Sequence[float]) -> None:
             raise AttributeError("System length must be greater than 0.0")
     system_lengths = tuple(wanted_system_lengths)
     system_lengths_over_two = tuple(wanted_system_length / 2.0 for wanted_system_length in wanted_system_lengths)
+
+
+def getstate() -> MutableMapping[str, Any]:
+    """
+    Return a state of this module that can be pickled.
+
+    This function only stores the global variable system_lengths that is required for the initialization of the
+    HypercuboidSetting setter class. The other global variables beta, dimension, number_of_root_nodes,
+    number_of_nodes_per_root_node, and number_of_node_levels are only copies from the setting module and are considered
+    in its getstate function.
+
+    Returns
+    -------
+    MutableMapping[str, Any]
+        The state that can be pickled.
+    """
+    return {"system_lengths": system_lengths}
+
+
+def setstate(state: MutableMapping[str, Any]) -> None:
+    """
+    Use the state dictionary to initialize this module.
+
+    This function calls the HypercuboidSetting setter class.
+
+    Parameters
+    ----------
+    state : MutableMapping[str, Any]
+        The state.
+
+    Raises
+    ------
+    AssertionError
+        If the state dictionary misses necessary keys for the initialization of this module.
+    """
+    assert "system_lengths" in state
+    assert "beta" in state
+    assert "dimension" in state
+    HypercuboidSetting(system_lengths=state["system_lengths"], beta=state["beta"], dimension=state["dimension"])
 
 
 def reset() -> None:

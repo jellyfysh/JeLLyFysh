@@ -23,9 +23,9 @@
  ************************************************************************************************************************/
 
 /** @file inverse_power_coulomb_bounding_potential.h
- *  @brief Declarations of functions to compute the space derivative of the inverse power coulomb bounding potential
- *         along the positive x direction, and to compute the required displacement in space along the positive x
- *         direction where the cumulative event rate equals a sampled potential change.
+ *  @brief Declarations of functions to compute the directional time derivative of the inverse power coulomb bounding
+ *         potential along a given velocity vector of the active unit, and to compute the required time displacement
+ *         along its velocity where the cumulative event rate equals a sampled potential change.
  *
  *  @author The JeLLyFysh organization.
  *  @bug No known bugs.
@@ -33,8 +33,22 @@
 #ifndef INVERSE_POWER_COULOMB_BOUNDING_POTENTIAL_H
 #define INVERSE_POWER_COULOMB_BOUNDING_POTENTIAL_H
 
-double derivative(double prefactor_product, double sx, double sy, double sz);
-double displacement(double prefactor_product, double sx, double sy, double sz, double potential_change,
+/** @brief Struct that stores a three-dimensional gradient.
+ *
+ * Note that using a fixed-size array in this struct (which indirectly allows to return such an array, see
+ * https://stackoverflow.com/questions/29088462/why-you-cannot-return-fixed-size-const-array-in-c) led to a bug on
+ * some operating systems.
+ */
+struct Gradient {
+    /** The components of the three-dimensional gradient. */
+    double gx;
+    double gy;
+    double gz;
+};
+
+double derivative(double prefactor_product, double velocity[3], double separation[3]);
+struct Gradient gradient(double prefactor_product, double separation[3]);
+double displacement(double prefactor_product, double velocity[3], double separation[3], double potential_change,
                     double system_length);
 
 #endif // INVERSE_POWER_COULOMB_BOUNDING_POTENTIAL_H

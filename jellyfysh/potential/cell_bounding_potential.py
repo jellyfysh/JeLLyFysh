@@ -67,6 +67,9 @@ class CellBoundingPotential(StandardVelocityInvertiblePotential, Initializer):
         self._derivative_bounds = None
         self._bounding_event_rate = None
 
+    def init_arguments(self):
+        raise NotImplementedError
+
     def initialize(self, cells: PeriodicCells, calculate_lower_bound: bool) -> None:
         """
         Initialize this class by using the estimator to determine upper bounds for the derivatives for all not excluded

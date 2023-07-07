@@ -79,6 +79,7 @@ class CuboidCells(Cells):
         base.exceptions.ConfigurationError
             If the number of neighbor layers is smaller than zero.
         """
+        self.init_arguments = lambda: {"cells_per_side": cells_per_side, "neighbor_layers": neighbor_layers}
         logger = logging.getLogger(__name__)
         log_init_arguments(logger.debug, self.__class__.__name__, cells_per_side=cells_per_side,
                            neighbor_layers=neighbor_layers)
@@ -175,6 +176,9 @@ class CuboidCells(Cells):
             cell_index = sum(
                 cell_identifier[index] * self._cumulative_product[index] for index in range(setting.dimension))
             yield self._cells[cell_index]
+
+    def init_arguments(self):
+        raise NotImplementedError
 
     def yield_cells(self) -> Iterable[Cell]:
         """

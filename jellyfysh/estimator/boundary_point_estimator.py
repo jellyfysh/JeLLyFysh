@@ -76,6 +76,11 @@ class BoundaryPointEstimator(Estimator):
             If the potential derivative method does not expect 0 or 2 charges.
             If a value for the target charge was specified but the potential derivative method does not expect any.
         """
+        self.init_arguments = lambda: {
+            "potential": (potential.__class__.__name__, potential.init_arguments()),
+            "prefactor": prefactor, "empirical_bound": empirical_bound, "points_per_side": points_per_side,
+            "target_charge": target_charge, "periodic_boundaries": periodic_boundaries
+        }
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            potential=potential.__class__.__name__, prefactor=prefactor, empirical_bound=empirical_bound,
                            points_per_side=points_per_side, target_charge=target_charge,
@@ -105,7 +110,10 @@ class BoundaryPointEstimator(Estimator):
             raise ConfigurationError("The estimator {0} can only be used with a potential that expects 0 or 2 charges."
                                      .format(self.__class__.__name__))
 
-    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: int,
+    def init_arguments(self):
+        raise NotImplementedError
+
+    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: Sequence[float],
                          calculate_lower_bound: bool = False) -> List[float]:
         """
         Estimate an upper and an optional lower bound of the potential's space derivative along the given direction
@@ -144,7 +152,7 @@ class BoundaryPointEstimator(Estimator):
                 point = [point_indices[i] / self._points_per_side * (upper_corner[i] - lower_corner[i])
                          + lower_corner[i] for i in range(setting.dimension)]
                 self._correct_separation(point)
-                derivative = self._potential_derivative(direction, point, *self._charges)
+                derivative = self._potential.derivative(direction, point, *self._charges)
                 upper_bound = max(upper_bound, derivative)
                 lower_bound = min(lower_bound, derivative)
                 point_indices.pop(d)
@@ -153,7 +161,7 @@ class BoundaryPointEstimator(Estimator):
                 point = [point_indices[i] / self._points_per_side * (upper_corner[i] - lower_corner[i])
                          + lower_corner[i] for i in range(setting.dimension)]
                 self._correct_separation(point)
-                derivative = self._potential_derivative(direction, point, *self._charges)
+                derivative = self._potential.derivative(direction, point, *self._charges)
                 upper_bound = max(upper_bound, derivative)
                 lower_bound = min(lower_bound, derivative)
                 point_indices.pop(d)

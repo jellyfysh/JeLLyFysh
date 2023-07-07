@@ -72,6 +72,10 @@ class Potential(metaclass=ABCMeta):
         self._number_charge_arguments = None
         super().__init__(**kwargs)
 
+    @abstractmethod
+    def init_arguments(self):
+        raise NotImplementedError
+
     @property
     def number_separation_arguments(self) -> int:
         """
@@ -149,6 +153,33 @@ class Potential(metaclass=ABCMeta):
         if number_separation_arguments + number_charge_arguments + 1 == number_derivative_arguments:
             self._number_separation_arguments = number_separation_arguments
             self._number_charge_arguments = number_charge_arguments
+
+    @abstractmethod
+    def gradient(self, separations, charges=None) -> Sequence[float]:
+        """
+        Return the gradient of the potential evaluated at the given separations and (optionally) for the given charges.
+
+        How the separation vectors between the active and the target units are defined, and with respect to which
+        position the gradient is computed should be clearly indicated in the inheriting potential, so that the event
+        handler which uses this potential is implemented in the right way.
+
+        When overwriting this method, each separation should appear as its own argument. The same is true for the
+        charges. For the latter, also no charges is a possibility. For example, a potential depending on two
+        separations and three charges would define this method as
+        'def gradient(self, separation_one, separation_two, charge_one, charge_two, charge_three)'.
+
+        Parameters
+        ----------
+        separations
+            All the separations needed to calculate the gradient.
+        charges : optional
+            All the charges needed to calculate the gradient.
+
+        Returns
+        -------
+        Sequence[float]
+            The gradient.
+        """
 
     @abstractmethod
     def derivative(self, velocity: Sequence[float], separations, charges=None) -> float:

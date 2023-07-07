@@ -25,6 +25,8 @@ import random
 from typing import Any, Sequence
 from jellyfysh.base.exceptions import ConfigurationError, bounding_potential_warning
 from jellyfysh.base.unit import Unit
+from jellyfysh.base import vectors
+from jellyfysh.event_handler import EventHandlerWithUnconfirmedEvents
 from jellyfysh.lifting import Lifting
 from jellyfysh.potential import Potential
 import jellyfysh.setting as setting
@@ -32,7 +34,8 @@ from .abstracts import SingleActiveLeafUnitEventHandler
 from .composite_objects import CompositeObjectsEventHandler
 
 
-class EventHandlerWithBoundingPotential(SingleActiveLeafUnitEventHandler, metaclass=ABCMeta):
+class EventHandlerWithBoundingPotential(SingleActiveLeafUnitEventHandler, EventHandlerWithUnconfirmedEvents,
+                                        metaclass=ABCMeta):
     """
     This event handler base class assumes a bounding event rate and deals with an interaction between a single active
     and a single target leaf unit via a general potential expecting a single separation.
@@ -168,8 +171,8 @@ class TwoCompositeObjectBoundingPotentialEventHandler(EventHandlerWithBoundingPo
         return identifier_one[0] != identifier_two[0]
 
     def _fill_lifting(self, local_units: Sequence[Unit], target_units: Sequence[Unit],
-                      active_leaf_unit_derivative: float,
-                      target_composite_object_factor_derivatives: Sequence[float]) -> None:
+                      active_leaf_unit_gradient: Sequence[float],
+                      target_composite_object_factor_gradients: Sequence[Sequence[float]]) -> None:
         """
         Fill the lifting scheme.
 
@@ -190,37 +193,75 @@ class TwoCompositeObjectBoundingPotentialEventHandler(EventHandlerWithBoundingPo
             The sequence of derivatives between each unit in the target composite object and the active leaf unit.
         """
         self._lifting.reset()
-        local_composite_object_factor_derivatives = [0.0] * len(local_units)
-
+        local_composite_object_factor_gradients = [[0.0 for _ in range(setting.dimension)]
+                                                   for _ in range(len(local_units))]
         for index_1, local_unit in enumerate(local_units):
             if local_unit is self._active_leaf_unit:
-                local_composite_object_factor_derivatives[index_1] = active_leaf_unit_derivative
-                continue
-            for index_2, target_unit in enumerate(target_units):
-                pairwise_derivative = self._potential.derivative(
-                    self._active_leaf_unit.velocity,
-                    setting.periodic_boundaries.separation_vector(local_unit.position, target_unit.position),
-                    *self._potential_charges(local_unit, target_unit))
-                local_composite_object_factor_derivatives[index_1] += pairwise_derivative
-                target_composite_object_factor_derivatives[index_2] -= pairwise_derivative
-
+                local_composite_object_factor_gradients[index_1] = active_leaf_unit_gradient
+            else:
+                for index_2, target_unit in enumerate(target_units):
+                    pairwise_gradient = self._potential.gradient(
+                        setting.periodic_boundaries.separation_vector(local_unit.position, target_unit.position),
+                        *self._potential_charges(local_unit, target_unit))
+                    for i, g in enumerate(pairwise_gradient):
+                        local_composite_object_factor_gradients[index_1][i] += g
+                        target_composite_object_factor_gradients[index_2][i] -= g
+        sum_gradient_squared = 0.0
+        sum_velocity_dot_gradient = 0.0
+        for index_1, gradient in enumerate(local_composite_object_factor_gradients):
+            sum_gradient_squared += vectors.norm_sq(gradient)
+            sum_velocity_dot_gradient += vectors.dot(local_units[index_1].velocity, gradient)
+        for index_2, gradient in enumerate(target_composite_object_factor_gradients):
+            sum_gradient_squared += vectors.norm_sq(gradient)
+            sum_velocity_dot_gradient += vectors.dot(target_units[index_2].velocity, gradient)
+        prefactor = -2.0 * sum_velocity_dot_gradient / sum_gradient_squared
+        new_local_velocities = []
+        new_target_velocities = []
         if local_units[0].identifier[0] < target_units[0].identifier[0]:
             for index_1, local_unit in enumerate(local_units):
-                self._lifting.insert(local_composite_object_factor_derivatives[index_1],
-                                     local_unit.identifier, local_unit is self._active_leaf_unit)
+                self._lifting.insert(vectors.dot(local_unit.velocity, local_composite_object_factor_gradients[index_1]),
+                                     (local_unit.identifier, False), local_unit is self._active_leaf_unit)
+                new_local_velocities.append(
+                    [v + prefactor * g
+                     for v, g in zip(local_unit.velocity, local_composite_object_factor_gradients[index_1])])
+                self._lifting.insert(
+                    vectors.dot(new_local_velocities[-1], local_composite_object_factor_gradients[index_1]),
+                    (local_unit.identifier, True), False)
             for index_2, target_unit in enumerate(target_units):
-                self._lifting.insert(target_composite_object_factor_derivatives[index_2],
-                                     target_unit.identifier, False)
+                self._lifting.insert(
+                    vectors.dot(target_unit.velocity, target_composite_object_factor_gradients[index_2]),
+                    (target_unit.identifier, False), False)
+                new_target_velocities.append(
+                    [v + prefactor * g
+                     for v, g in zip(target_unit.velocity, target_composite_object_factor_gradients[index_2])])
+                self._lifting.insert(
+                    vectors.dot(new_target_velocities[-1], target_composite_object_factor_gradients[index_2]),
+                    (target_unit.identifier, True), False)
         else:
             for index_2, target_unit in enumerate(target_units):
-                self._lifting.insert(target_composite_object_factor_derivatives[index_2],
-                                     target_unit.identifier, False)
+                self._lifting.insert(
+                    vectors.dot(target_unit.velocity, target_composite_object_factor_gradients[index_2]),
+                    (target_unit.identifier, False), False)
+                new_target_velocities.append(
+                    [v + prefactor * g
+                     for v, g in zip(target_unit.velocity, target_composite_object_factor_gradients[index_2])])
+                self._lifting.insert(
+                    vectors.dot(new_target_velocities[-1], target_composite_object_factor_gradients[index_2]),
+                    (target_unit.identifier, True), False)
             for index_1, local_unit in enumerate(local_units):
-                self._lifting.insert(local_composite_object_factor_derivatives[index_1],
-                                     local_unit.identifier, local_unit is self._active_leaf_unit)
+                self._lifting.insert(vectors.dot(local_unit.velocity, local_composite_object_factor_gradients[index_1]),
+                                     (local_unit.identifier, False), local_unit is self._active_leaf_unit)
+                new_local_velocities.append(
+                    [v + prefactor * g
+                     for v, g in zip(local_unit.velocity, local_composite_object_factor_gradients[index_1])])
+                self._lifting.insert(
+                    vectors.dot(new_local_velocities[-1], local_composite_object_factor_gradients[index_1]),
+                    (local_unit.identifier, True), False)
+        return new_local_velocities, new_target_velocities
 
 
-class EventHandlerWithPiecewiseConstantBoundingPotential(SingleActiveLeafUnitEventHandler, metaclass=ABCMeta):
+class EventHandlerWithPiecewiseConstantBoundingPotential(SingleActiveLeafUnitEventHandler,
+                                                         EventHandlerWithUnconfirmedEvents, metaclass=ABCMeta):
     """
     Abstract event handler base class for a piecewise constant bounding potential for an interaction between leaf units.
 
@@ -308,8 +349,10 @@ class EventHandlerWithPiecewiseConstantBoundingPotential(SingleActiveLeafUnitEve
         except TypeError:
             derivative_one = derivatives
 
+        speed = vectors.norm(self._active_leaf_unit.velocity)
+        max_time_displacement = self._max_displacement / speed
         leaf_unit_positions[self._active_leaf_unit_index] = [setting.periodic_boundaries.correct_position_entry(
-            self._active_leaf_unit.position[d] + self._active_leaf_unit.velocity[d] * self._max_displacement, d)
+            self._active_leaf_unit.position[d] + self._active_leaf_unit.velocity[d] * max_time_displacement, d)
                                                              for d in range(setting.dimension)]
         separations = self._get_separations(leaf_unit_positions)
         derivatives = self._potential.derivative(self._active_leaf_unit.velocity, *separations, *charges)
@@ -320,16 +363,16 @@ class EventHandlerWithPiecewiseConstantBoundingPotential(SingleActiveLeafUnitEve
         except TypeError:
             derivative_two = derivatives
 
-        constant_derivative = max(derivative_one, derivative_two) + self._offset
+        constant_derivative = max(derivative_one, derivative_two) + self._offset * speed
         if constant_derivative <= 0.0:
             self._bounding_event_rate = None
-            return self._max_displacement
-        elif potential_change / constant_derivative < self._max_displacement:
+            return max_time_displacement
+        elif potential_change / constant_derivative < max_time_displacement:
             self._bounding_event_rate = constant_derivative
             return potential_change / constant_derivative
         else:
             self._bounding_event_rate = None
-            return self._max_displacement
+            return max_time_displacement
 
     def _event_rate_from_piecewise_constant_bounding_potential(self) -> float:
         """

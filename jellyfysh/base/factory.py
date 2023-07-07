@@ -144,9 +144,7 @@ def build_from_config(config: ConfigParser, section: str, package: str, class_na
         # If 'section' is an alias, we want instance.__class__.__name__ to be 'section (class_name)'
         # We use type to dynamically create a class inheriting from class_object with the proper name
         # Dict (last argument) is empty since we do not want to add attributes/methods
-        # For dumping with dill to work, we have to set the __module__ to __main__
-        # (see https://stackoverflow.com/questions/51016272)
-        class_object = type("{0} ({1})".format(section, class_name), (class_object,), {"__module__": "__main__"})
+        class_object = type("{0} ({1})".format(section, class_name), (class_object,), {})
     instance = class_object(**call_dictionary)
     return instance
 

@@ -20,6 +20,7 @@
 # Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 """Module for the SingleIndependentActivePeriodicDirectionEndOfChainEventHandler class."""
+from copy import copy
 import logging
 from random import randint
 from typing import List, Sequence, Tuple
@@ -145,7 +146,7 @@ class SingleIndependentActivePeriodicDirectionEndOfChainEventHandler(EndOfChainE
         """
         assert len(cnodes_with_active_units) == len(cnodes_with_new_active_units) == 1
         assert cnodes_with_active_units[0].value.time_stamp is not None
-        self._last_committed_event_time = cnodes_with_active_units[0].value.time_stamp
+        self._last_committed_event_time = copy(self._event_time)
         return super().send_out_state(cnodes_with_active_units, cnodes_with_new_active_units)
 
     def _get_new_velocity(self, old_velocity: Sequence[float]) -> Sequence[float]:

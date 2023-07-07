@@ -22,12 +22,13 @@
 """Module for the FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential class."""
 import logging
 import random
-from typing import List, Sequence, Tuple
+from typing import List, Sequence, Tuple, Union
 from jellyfysh.base.exceptions import ConfigurationError, bounding_potential_warning
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base.node import Node
 from jellyfysh.base.time import Time
 from jellyfysh.base.unit import Unit
+import jellyfysh.base.vectors as vectors
 from jellyfysh.lifting import Lifting
 from jellyfysh.potential import Potential
 import jellyfysh.setting as setting
@@ -35,7 +36,7 @@ from .abstracts import EventHandlerWithPiecewiseConstantBoundingPotential
 
 
 class FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential(
-      EventHandlerWithPiecewiseConstantBoundingPotential):
+    EventHandlerWithPiecewiseConstantBoundingPotential):
     """
     Event handler which uses a dynamically created piecewise constant bounding potential for an interaction between more
     than two leaf units.
@@ -109,18 +110,16 @@ class FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential(
                                      .format(self.__class__.__name__, self._separations))
         # The charges the potential expects will always be set to 1.0
         self._number_charges = self._potential.number_charge_arguments
+        self._number_events = 0
+        self._number_accepted = 0
 
     def send_event_time(self, in_state: Sequence[Node]) -> Time:
         """
         Return the candidate event time.
 
-        The in-state should consist of all branches of the leaf units which take part in the interaction treated in this
-        event handler.
-
-        This method uses the dynamically created piecewise constant bounding potential to compute the candidate event
-        time. For this, it extracts all leaf units from the in-state. Then it uses the
-        _displacement_from_piecewise_constant_bounding_potential method that is implemented in the
-        EventHandlerWithPiecewiseConstantBoundingPotential base class.
+        This method stores the transmitted in-state internally and then uses the resend_event_time to determine the
+        candidate event time. The in-state should consist of all branches of the leaf units which take part in the
+        interaction treated in this event handler.
 
         Parameters
         ----------
@@ -135,6 +134,22 @@ class FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential(
         self._store_in_state(in_state)
         self._construct_leaf_cnodes()
         self._extract_active_leaf_unit()
+        return self.resend_event_time()
+
+    def resend_event_time(self) -> Time:
+        """
+        Return the candidate event time based on the internally stored in-state.
+
+        This method uses the dynamically created piecewise constant bounding potential to compute the candidate event
+        time. For this, it extracts all leaf units from the in-state. Then it uses the
+        _displacement_from_piecewise_constant_bounding_potential method that is implemented in the
+        EventHandlerWithPiecewiseConstantBoundingPotential base class.
+
+        Returns
+        -------
+        base.time.Time
+            The candidate event time.
+        """
         time_displacement = self._displacement_from_piecewise_constant_bounding_potential(
             random.expovariate(setting.beta))
         self._event_time = self._active_leaf_unit.time_stamp + time_displacement
@@ -142,7 +157,7 @@ class FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential(
         return self._event_time
 
     # noinspection PyUnresolvedReferences
-    def send_out_state(self) -> Sequence[Node]:
+    def send_out_state(self) -> Union[Sequence[Node], None]:
         """
         Return the out-state.
 
@@ -152,7 +167,7 @@ class FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential(
 
         Returns
         -------
-        Sequence[base.node.Node]
+        Sequence[base.node.Node] or None
             The out-state.
 
         Raises
@@ -162,29 +177,48 @@ class FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential(
         AssertionError
             If the lifting scheme failed.
         """
-        separations = self._get_separations([unit.position for unit in self._leaf_units])
+        self._number_events += 1
         bounding_event_rate = self._event_rate_from_piecewise_constant_bounding_potential()
         if bounding_event_rate is not None:
             assert bounding_event_rate >= 0.0
-            potential_derivatives = self._potential.derivative(
-                self._active_leaf_unit.velocity, *separations, *self._get_charges())
-            active_unit_derivative = potential_derivatives[self._active_leaf_unit_index]
-            if active_unit_derivative > 0:
-                bounding_potential_warning(self.__class__.__name__, bounding_event_rate,
-                                           potential_derivatives[self._active_leaf_unit_index])
-                if random.uniform(0.0, bounding_event_rate) < active_unit_derivative:
+            separations = self._get_separations([unit.position for unit in self._leaf_units])
+            potential_gradients = self._potential.gradient(*separations, *self._get_charges())
+            active_unit_gradient = potential_gradients[self._active_leaf_unit_index]
+            gradient_dot_velocity = vectors.dot(active_unit_gradient, self._active_leaf_unit.velocity)
+            if gradient_dot_velocity > 0.0:
+                bounding_potential_warning(self.__class__.__name__, bounding_event_rate, gradient_dot_velocity)
+                if random.uniform(0.0, bounding_event_rate) < gradient_dot_velocity:
+                    self._number_accepted += 1
                     self._lifting.reset()
+                    sum_gradient_squared = 0.0
+                    sum_velocity_dot_gradient = 0.0
                     for index, leaf_unit in enumerate(self._leaf_units):
-                        self._lifting.insert(potential_derivatives[index], leaf_unit.identifier,
-                                             index == self._active_leaf_unit_index)
-                    new_active_identifier = self._lifting.get_active_identifier()
-                    new_active_indices = [index for index, leaf_unit in enumerate(self._leaf_units)
-                                          if leaf_unit.identifier == new_active_identifier]
-                    assert len(new_active_indices) == 1
-                    self._exchange_velocity(self._leaf_cnodes[self._active_leaf_unit_index],
-                                            self._leaf_cnodes[new_active_indices[0]])
-
-        return self._state
+                        sum_gradient_squared += vectors.norm_sq(potential_gradients[index])
+                        sum_velocity_dot_gradient += vectors.dot(leaf_unit.velocity, potential_gradients[index])
+                    prefactor = -2.0 * sum_velocity_dot_gradient / sum_gradient_squared
+                    new_velocities = []
+                    for index, leaf_unit in enumerate(self._leaf_units):
+                        velocity_change = [prefactor * g for g in potential_gradients[index]]
+                        new_velocities.append([v + c for v, c in zip(leaf_unit.velocity, velocity_change)])
+                        self._lifting.insert(vectors.dot(leaf_unit.velocity, potential_gradients[index]),
+                                             (index, False), leaf_unit is self._active_leaf_unit)
+                        self._lifting.insert(vectors.dot(new_velocities[-1], potential_gradients[index]),
+                                             (index, True), False)
+                    new_active_index, change_velocities = self._lifting.get_active_identifier()
+                    assert not (not change_velocities and new_active_index == self._active_leaf_unit_index)
+                    time_stamp = self._active_leaf_unit.time_stamp
+                    self._active_leaf_unit.time_stamp = None
+                    self._register_velocity_change_leaf_cnode(self._leaf_cnodes[self._active_leaf_unit_index],
+                                                              [-c for c in self._active_leaf_unit.velocity])
+                    self._leaf_units[new_active_index].time_stamp = time_stamp
+                    if change_velocities:
+                        for index, leaf_unit in enumerate(self._leaf_units):
+                            leaf_unit.velocity = new_velocities[index]
+                    self._register_velocity_change_leaf_cnode(self._leaf_cnodes[new_active_index],
+                                                              self._leaf_cnodes[new_active_index].value.velocity)
+                    self._commit_non_leaf_velocity_changes()
+                    return self._state
+        return None
 
     def _get_separations(self, positions: Sequence[Sequence[float]]) -> List[Sequence[float]]:
         """
@@ -228,3 +262,8 @@ class FixedSeparationsEventHandlerWithPiecewiseConstantBoundingPotential(
             The tuple of charges.
         """
         return tuple(1.0 for _ in range(self._number_charges))
+
+    def info(self):
+        print(f"Acceptance rate {self.__class__.__name__}: "
+              f"{self._number_accepted / self._number_events if self._number_events != 0 else 0.0}")
+

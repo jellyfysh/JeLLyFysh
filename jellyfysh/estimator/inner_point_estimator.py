@@ -24,6 +24,7 @@ import logging
 from typing import List, Sequence
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
+from jellyfysh.event_handler.fibonacci_sphere import FibonacciSphere
 from jellyfysh.potential import Potential
 from .estimator import Estimator
 
@@ -43,7 +44,9 @@ class InnerPointEstimator(Estimator):
     """
 
     def __init__(self, potential: Potential, prefactor: float = 1.5, empirical_bound: float = float('inf'),
-                 points_per_side: int = 10, target_charge: float = None, periodic_boundaries: bool = True) -> None:
+                 points_per_side: int = 10, target_charge: float = None, periodic_boundaries: bool = True,
+                 fibonacci_sphere: FibonacciSphere = FibonacciSphere(), number_direction_tries: int = 100,
+                 empirical_lower_bound: float = -float("inf")) -> None:
         """
         The constructor of the InnerPointEstimator class.
 
@@ -76,6 +79,10 @@ class InnerPointEstimator(Estimator):
             If the potential derivative method does not expect 0 or 2 charges.
             If a value for the target charge was specified but the potential derivative method does not expect any.
         """
+        self.init_arguments = lambda: {
+            "potential": (potential.__class__.__name__, potential.init_arguments()),
+            "prefactor": prefactor, "empirical_bound": empirical_bound, "points_per_side": points_per_side,
+            "target_charge": target_charge, "periodic_boundaries": periodic_boundaries}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            potential=potential.__class__.__name__, prefactor=prefactor, empirical_bound=empirical_bound,
                            points_per_side=points_per_side, target_charge=target_charge,
@@ -104,8 +111,14 @@ class InnerPointEstimator(Estimator):
         else:
             raise ConfigurationError("The estimator {0} can only be used with a potential that expects 0 or 2 charges."
                                      .format(self.__class__.__name__))
+        self._fibonacci_sphere = fibonacci_sphere
+        self._number_direction_tries = number_direction_tries
+        self._empirical_lower_bound = empirical_lower_bound
 
-    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: int,
+    def init_arguments(self):
+        raise NotImplementedError
+
+    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: Sequence[float],
                          calculate_lower_bound: bool = False) -> List[float]:
         """
         Estimate an upper and an optional lower bound of the potential's space derivative along the given direction
@@ -136,17 +149,26 @@ class InnerPointEstimator(Estimator):
         super().derivative_bound(lower_corner, upper_corner, direction, calculate_lower_bound)
         upper_bound = -float('inf')
         lower_bound = float('inf')
-        for ix in range(self._points_per_side + 1):
-            px = lower_corner[0] + (upper_corner[0] - lower_corner[0]) * ix / self._points_per_side
-            for iy in range(self._points_per_side + 1):
-                py = lower_corner[1] + (upper_corner[1] - lower_corner[1]) * iy / self._points_per_side
-                for iz in range(self._points_per_side + 1):
-                    pz = lower_corner[2] + (upper_corner[2] - lower_corner[2]) * iz / self._points_per_side
-                    separation = [px, py, pz]
-                    self._correct_separation(separation)
-                    derivative = self._potential_derivative(direction, separation, *self._charges)
-                    upper_bound = max(upper_bound, derivative)
-                    lower_bound = min(lower_bound, derivative)
+
+        direction_index = self._fibonacci_sphere.get_closest_direction_index(direction)
+        assert(d1 == d2 for d1, d2 in zip(direction,
+                                          [d for d in self._fibonacci_sphere.yield_directions()][direction_index]))
+        for direction_trial in range(self._number_direction_tries + 1):
+            if direction_trial == 0:
+                random_direction = direction
+            else:
+                random_direction = self._fibonacci_sphere.get_random_direction_about_index(direction_index)
+            for ix in range(self._points_per_side + 1):
+                px = lower_corner[0] + (upper_corner[0] - lower_corner[0]) * ix / self._points_per_side
+                for iy in range(self._points_per_side + 1):
+                    py = lower_corner[1] + (upper_corner[1] - lower_corner[1]) * iy / self._points_per_side
+                    for iz in range(self._points_per_side + 1):
+                        pz = lower_corner[2] + (upper_corner[2] - lower_corner[2]) * iz / self._points_per_side
+                        separation = [px, py, pz]
+                        self._correct_separation(separation)
+                        derivative = self._potential.derivative(random_direction, separation, *self._charges)
+                        upper_bound = max(upper_bound, derivative)
+                        lower_bound = min(lower_bound, derivative)
 
         if upper_bound > 0.0:
             upper_bound *= self._prefactor
@@ -158,9 +180,10 @@ class InnerPointEstimator(Estimator):
             lower_bound *= self._prefactor
 
         if calculate_lower_bound:
-            return [min(self._empirical_bound, upper_bound), max(-self._empirical_bound, lower_bound)]
+            return [min(self._empirical_bound, max(self._empirical_lower_bound, upper_bound)),
+                    max(-self._empirical_bound, min(-self._empirical_lower_bound, lower_bound))]
         else:
-            return [min(self._empirical_bound, upper_bound)]
+            return [min(self._empirical_bound, max(self._empirical_lower_bound, upper_bound))]
 
     def charge_correction_factor(self, active_charge: float, target_charge: float = 1.0) -> float:
         """

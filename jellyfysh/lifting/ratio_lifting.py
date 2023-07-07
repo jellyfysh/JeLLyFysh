@@ -48,6 +48,7 @@ class RatioLifting(Lifting):
         """
         super().get_active_identifier()
         random_number = random.uniform(0.0, sum(self._negative_lifting_rates))
+        assert abs(self._sum_positive_lifting_rates - sum(self._negative_lifting_rates)) < 1.0e-11
         summed_lifting_rate = 0.
         for index, lifting_rate in enumerate(self._negative_lifting_rates):
             summed_lifting_rate += lifting_rate

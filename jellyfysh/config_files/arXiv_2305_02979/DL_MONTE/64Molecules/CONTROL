@@ -1,0 +1,32 @@
+NVT simulation of SPC/Fw water
+
+use ortho
+finish
+
+seeds 12 34 56 78
+
+temperature 298.16  # Temperature in K.
+
+nbrlist auto
+
+ewald prec 1e-6  # Precision of Ewald summation (infers parameters of Ewald summation)
+
+steps 2145280000  # Total number of MC steps.
+
+stats 512000  # Sampling interval of statistics in PTFILE.
+
+print 512000  # Interval of print data snapshots in OUTPUT.000 file.
+
+yamldata 512000 # Sampling interval of yamldata that includes the total energies.
+
+sample coordinates 5120000  # Sampling interval of configurations in trajectory.
+
+check 512000  # Checking interval of rolling vs. recalculated energies.
+
+archiveformat dcd  # Store trajectory in dcd binary format.
+
+move atom 2 100  # Move two atom types with a weight of hundred.
+OW c
+HW c
+
+start simulation

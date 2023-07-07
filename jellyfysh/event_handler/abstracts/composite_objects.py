@@ -75,10 +75,11 @@ class CompositeObjectsEventHandler(LeavesEventHandler, metaclass=ABCMeta):
         assert len(self._leaf_units) % 2 == 0
         sorted_leaf_units = sorted(self._leaf_units, key=lambda unit: unit.identifier)
 
-        if all(leaf_unit.velocity is None for leaf_unit in sorted_leaf_units[len(sorted_leaf_units) // 2:]):
+        if all(leaf_unit.time_stamp is None for leaf_unit in sorted_leaf_units[len(sorted_leaf_units) // 2:]):
             self._local_leaf_units = sorted_leaf_units[:len(sorted_leaf_units) // 2]
             self._target_leaf_units = sorted_leaf_units[len(sorted_leaf_units) // 2:]
         else:
+            assert all(leaf_unit.time_stamp is None for leaf_unit in sorted_leaf_units[:len(sorted_leaf_units) // 2])
             self._target_leaf_units = sorted_leaf_units[:len(sorted_leaf_units) // 2]
             self._local_leaf_units = sorted_leaf_units[len(sorted_leaf_units) // 2:]
 

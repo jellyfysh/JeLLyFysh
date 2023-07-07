@@ -21,15 +21,18 @@
 #
 """Module for the LeafUnitCellVetoEventHandler class."""
 import logging
+import random
 from typing import Sequence, Union
 from jellyfysh.activator.internal_state.cell_occupancy.cells import PeriodicCells
-from jellyfysh.base.exceptions import ConfigurationError
+from jellyfysh.base.exceptions import ConfigurationError, bounding_potential_warning
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base.node import Node, yield_leaf_nodes
+from jellyfysh.base import vectors
 from jellyfysh.estimator import Estimator
 from jellyfysh.potential import Potential
 import jellyfysh.setting as setting
 from .abstracts import CellVetoEventHandler
+from .fibonacci_sphere import FibonacciSphere
 
 
 class LeafUnitCellVetoEventHandler(CellVetoEventHandler):
@@ -56,7 +59,10 @@ class LeafUnitCellVetoEventHandler(CellVetoEventHandler):
     with 1 (see base.time.Time class for more information).
     """
 
-    def __init__(self, estimator: Estimator, potential: Potential = None, charge: str = None) -> None:
+    def __init__(self, estimator: Estimator, fibonacci_sphere: FibonacciSphere = FibonacciSphere(),
+                 potential: Potential = None, charge: str = None, derivative_bounds_input_filename: str = None,
+                 derivative_bounds_correction_factor: float = 1.0,
+                 derivative_bounds_output_filename: str = None) -> None:
         """
         The constructor of the LeafUnitCellVetoEventHandler class.
 
@@ -77,9 +83,16 @@ class LeafUnitCellVetoEventHandler(CellVetoEventHandler):
             If the charge is not None but the potential expects more than two charges.
         """
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
-                           estimator=estimator.__class__.__name__,
-                           potential=None if potential is None else potential.__class__.__name__, charge=charge)
-        super().__init__(estimator=estimator, potential=estimator.potential if potential is None else potential)
+                           estimator=estimator.__class__.__name__, fibonacci_sphere=fibonacci_sphere.__class__.__name__,
+                           potential=None if potential is None else potential.__class__.__name__, charge=charge,
+                           derivative_bounds_input_filename=derivative_bounds_input_filename,
+                           derivative_bounds_correction_factor=derivative_bounds_correction_factor,
+                           derivative_bounds_output_filename=derivative_bounds_output_filename)
+        super().__init__(estimator=estimator, fibonacci_sphere=fibonacci_sphere,
+                         potential=estimator.potential if potential is None else potential,
+                         derivative_bounds_input_filename=derivative_bounds_input_filename,
+                         derivative_bounds_correction_factor=derivative_bounds_correction_factor,
+                         derivative_bounds_output_filename=derivative_bounds_output_filename)
         self._charge = charge
         if charge is None:
             self._charges = lambda unit_one, unit_two: tuple(1.0 for _ in
@@ -114,7 +127,7 @@ class LeafUnitCellVetoEventHandler(CellVetoEventHandler):
         """
         super().initialize(cells, cell_level, self._charge)
 
-    def send_out_state(self, target_unit_root_cnode: Union[Node, None]) -> Sequence[Node]:
+    def send_out_state(self, target_unit_root_cnode: Union[Node, None]) -> Union[Sequence[Node], None]:
         """
         Return the out-state.
 
@@ -130,20 +143,36 @@ class LeafUnitCellVetoEventHandler(CellVetoEventHandler):
 
         Returns
         -------
-        Sequence[base.node.Node]
+        Sequence[base.node.Node] or None
             The out-state.
+
+        Raises
+        ------
+        AssertionError
+            If the cnode in the argument does not contain exactly one leaf cnode.
         """
-        if target_unit_root_cnode is None:
-            return self._state
-        else:
-            self._state.append(target_unit_root_cnode)
+        if target_unit_root_cnode is not None:
+            target_leaf_cnodes = []
+            target_leaf_units = []
             for leaf_cnode in yield_leaf_nodes(target_unit_root_cnode):
-                self._leaf_cnodes.append(leaf_cnode)
-                self._leaf_units.append(leaf_cnode.value)
-            assert len(self._leaf_units) == 2
-            self._calculate_out_state_of_two_leaf_unit_bounding_potential(
+                target_leaf_cnodes.append(leaf_cnode)
+                target_leaf_units.append(leaf_cnode.value)
+            assert len(target_leaf_units) == 1
+            target_leaf_unit = target_leaf_units[0]
+            real_gradient = self._potential.gradient(
                 setting.periodic_boundaries.separation_vector(
-                    self._leaf_units[self._active_leaf_unit_index].position,
-                    self._leaf_units[self._active_leaf_unit_index ^ 1].position),
-                self._charges(self._leaf_units[0], self._leaf_units[1]),)
-            return self._state
+                    self._active_leaf_unit.position, target_leaf_unit.position),
+                *self._charges(self._active_leaf_unit, target_leaf_unit))
+            real_derivative = vectors.dot(self._active_leaf_unit.velocity, real_gradient)
+            if real_derivative > 0:
+                bounding_potential_warning(self.__class__.__name__, self._bounding_event_rate, real_derivative)
+                if random.uniform(0, self._bounding_event_rate) < real_derivative:
+                    self._state.append(target_unit_root_cnode)
+                    self._leaf_cnodes.append(target_leaf_cnodes[0])
+                    self._leaf_units.append(target_leaf_units[0])
+                    assert len(self._leaf_units) == 2
+                    self._exchange_velocity(self._leaf_cnodes[self._active_leaf_unit_index],
+                                            self._leaf_cnodes[self._active_leaf_unit_index ^ 1],
+                                            real_gradient)
+                    return self._state
+        return None

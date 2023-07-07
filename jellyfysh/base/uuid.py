@@ -20,6 +20,7 @@
 # Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 """Module for the unique identification hash function."""
+from typing import Any, MutableMapping
 import uuid
 
 
@@ -42,3 +43,39 @@ def get_uuid() -> uuid.UUID:
     if _uuid is None:
         _uuid = uuid.uuid4()
     return _uuid
+
+
+def getstate() -> MutableMapping[str, Any]:
+    """
+    Return a state of this module that can be pickled.
+
+    This function stores the _uuid variable so that it can be set explicitly in the setstate function.
+
+    Returns
+    -------
+    MutableMapping[str, Any]
+        The state that can be pickled.
+    """
+    return {"_uuid": get_uuid()}
+
+
+def setstate(state: MutableMapping[str, Any]) -> None:
+    """
+    Use the state dictionary to initialize this module.
+
+    This function sets the _uuid variable to the value that is specified in the state.
+
+    Parameters
+    ----------
+    state : MutableMapping[str, Any]
+        The state.
+
+    Raises
+    ------
+    AssertionError
+        If the state dictionary misses the necessary _uuid key for the initialization of this module.
+    """
+    assert "_uuid" in state
+    assert state["_uuid"] is not None
+    global _uuid
+    _uuid = state["_uuid"]

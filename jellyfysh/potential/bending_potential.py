@@ -21,24 +21,20 @@
 #
 """Module for the BendingPotential class."""
 import logging
-import math
+from math import acos, sqrt
 from typing import Sequence, Tuple
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base import vectors
-import jellyfysh.setting as setting
-from .abstracts import StandardVelocityPotential
+from .potential import Potential
 
 
 # noinspection PyMethodOverriding
-class BendingPotential(StandardVelocityPotential):
+class BendingPotential(Potential):
     """
-    This class implements the three-unit bending potential U_ijk = k/2 * (phi_ijk - phi_0).
+    This class implements the three-unit bending potential U_ijk = k/2 * (phi_ijk - phi_0)^2.
 
-    k is a prefactor, phi_ijk denotes the angle formed by the vectors r_i - r_j and r_k - r_j and phi_0 is an
-    equilibrium angle. This class computes the derivative with respect to all units.
-
-    This potential only allows for standard velocities (i.e., velocities parallel to one of the cartesian coordinate
-    axes going in the positive direction) of the active unit.
+    Here, k is a prefactor, phi_ijk denotes the angle formed by the vectors r_i - r_j and r_k - r_j, and phi_0 is an
+    equilibrium angle.
     """
 
     def __init__(self, equilibrium_angle: float, prefactor: float = 1.0):
@@ -52,21 +48,24 @@ class BendingPotential(StandardVelocityPotential):
         prefactor : float, optional
             The prefactor k of the potential.
         """
+        self.init_arguments = lambda: {"equilibrium_angle": equilibrium_angle, "prefactor": prefactor}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            equilibrium_angle=equilibrium_angle, prefactor=prefactor)
         super().__init__(prefactor=prefactor)
         self._equilibrium_angle = equilibrium_angle
 
-    def standard_velocity_derivative(self, direction: int, separation_one: Sequence[float],
-                                     separation_two: Sequence[float]) -> Tuple[float, float, float]:
+    def init_arguments(self):
+        raise NotImplementedError
+
+    def gradient(self, separation_one: Sequence[float],
+                 separation_two: Sequence[float]) -> Tuple[Sequence[float], Sequence[float], Sequence[float]]:
         """
-        Return the space derivative with respect to i, j, and k of the potential along a positive direction parallel to
-        one of the cartesian axes for the given separations .
+        Return the gradient of the potential evaluated at the given separations.
+
+        This method returns three gradients with respect to the positions r_i, r_j, and r_k, respectively.
 
         Parameters
         ----------
-        direction : int
-            The direction of the derivative.
         separation_one : Sequence[float]
             The separation vector r_i - r_j.
         separation_two : Sequence[float]
@@ -74,44 +73,38 @@ class BendingPotential(StandardVelocityPotential):
 
         Returns
         -------
-        (float, float, float)
-            The space derivatives with respect to i, j, and k.
+        (Sequence[float], Sequence[float], Sequence[float])
+            The gradients with respect to the positions r_i, r_j, and r_k, respectively.
         """
-        separation_norm_one = vectors.norm(separation_one)
-        separation_norm_two = vectors.norm(separation_two)
-        cosine_of_angle = (sum(separation_one[i] * separation_two[i] for i in range(setting.dimension))
-                           / separation_norm_one / separation_norm_two)
-        angle = math.acos(cosine_of_angle)
-
+        separation_one_norm_squared = vectors.norm_sq(separation_one)
+        separation_two_norm_squared = vectors.norm_sq(separation_two)
+        separation_one_norm = sqrt(separation_one_norm_squared)
+        separation_two_norm = sqrt(separation_two_norm_squared)
+        cos_angle = vectors.dot(separation_one, separation_two) / separation_one_norm / separation_two_norm
+        angle = acos(cos_angle)
         d_potential_by_d_angle = self._prefactor * (angle - self._equilibrium_angle)
-        d_angle_by_d_cosine_of_angle = -1.0 / math.sin(angle)
-        d_cosine_by_d_separation_one = (
-                separation_two[direction] / separation_norm_one / separation_norm_two - cosine_of_angle *
-                separation_one[direction] / separation_norm_one ** 2)
-        d_cosine_by_d_separation_two = (
-                separation_one[direction] / separation_norm_one / separation_norm_two - cosine_of_angle *
-                separation_two[direction] / separation_norm_two ** 2)
-
-        d_potential_by_d_separation_one = (
-                d_potential_by_d_angle * d_angle_by_d_cosine_of_angle * d_cosine_by_d_separation_one)
-        d_potential_by_d_separation_two = (
-                d_potential_by_d_angle * d_angle_by_d_cosine_of_angle * d_cosine_by_d_separation_two)
-
-        return (d_potential_by_d_separation_one, - d_potential_by_d_separation_one - d_potential_by_d_separation_two,
-                d_potential_by_d_separation_two)
+        d_angle_by_d_cos_angle = -1.0 / sqrt(1.0 - cos_angle * cos_angle)
+        constant_factor_one = (d_potential_by_d_angle * d_angle_by_d_cos_angle
+                               / separation_one_norm / separation_two_norm)
+        constant_factor_two = (d_potential_by_d_angle * d_angle_by_d_cos_angle
+                               * cos_angle / separation_one_norm_squared)
+        constant_factor_three = (d_potential_by_d_angle * d_angle_by_d_cos_angle
+                                 * cos_angle / separation_two_norm_squared)
+        d_potential_by_d_xi = [s_two * constant_factor_one - s_one * constant_factor_two
+                               for s_one, s_two in zip(separation_one, separation_two)]
+        d_potential_by_d_xk = [s_one * constant_factor_one - s_two * constant_factor_three
+                               for s_one, s_two in zip(separation_one, separation_two)]
+        d_potential_by_d_xj = [-d_xi - d_xk for d_xi, d_xk in zip(d_potential_by_d_xi, d_potential_by_d_xk)]
+        return d_potential_by_d_xi, d_potential_by_d_xj, d_potential_by_d_xk
 
     def derivative(self, velocity: Sequence[float], separation_one: Sequence[float],
                    separation_two: Sequence[float]) -> Tuple[float, float, float]:
         """
-        Return the directional time derivative along a given velocity vector of the active unit for certain separations
-        and charges.
+        Return the directional time derivative along the given velocity vector of the active unit for the given
+        separations.
 
-        This potential only allows for standard velocities (i.e., velocities parallel to one of the cartesian coordinate
-        axes going in the positive direction) of the active unit.
-
-        This method first computes the space derivative with respect to the units i, j, and k of the potential along the
-        positive direction parallel to one of the cartesian axes of the active unit for the given separations. Each
-        derivative is then multiplied by the absolute value of the velocity for the returned time derivatives.
+        This method returns three derivatives that correspond to the units i, j, and k being active with the given
+        velocity, respectively.
         
         Parameters
         ----------
@@ -130,9 +123,24 @@ class BendingPotential(StandardVelocityPotential):
         Raises
         ------
         AssertionError
-            If the velocity is not in the positive direction parallel to one of the cartesian axes.
+            If the velocity is zero.
         """
-        direction, speed = self._analyse_velocity(velocity)
-        # noinspection PyTypeChecker
-        return tuple(derivative * speed
-                     for derivative in self.standard_velocity_derivative(direction, separation_one, separation_two))
+        assert any(entry != 0.0 for entry in velocity)
+        separation_one_norm_squared = vectors.norm_sq(separation_one)
+        separation_two_norm_squared = vectors.norm_sq(separation_two)
+        separation_one_norm = sqrt(separation_one_norm_squared)
+        separation_two_norm = sqrt(separation_two_norm_squared)
+        cos_angle = vectors.dot(separation_one, separation_two) / separation_one_norm / separation_two_norm
+        angle = acos(cos_angle)
+        d_potential_by_d_angle = self._prefactor * (angle - self._equilibrium_angle)
+        d_angle_by_d_cos_angle = -1.0 / sqrt(1.0 - cos_angle * cos_angle)
+        separation_one_dot_velocity = vectors.dot(separation_one, velocity)
+        separation_two_dot_velocity = vectors.dot(separation_two, velocity)
+        velocity_times_d_cos_angle_by_d_xi = (separation_two_dot_velocity / separation_one_norm / separation_two_norm
+                                              - separation_one_dot_velocity * cos_angle / separation_one_norm_squared)
+        velocity_times_d_cos_angle_by_d_xk = (separation_one_dot_velocity / separation_one_norm / separation_two_norm
+                                              - separation_two_dot_velocity * cos_angle / separation_two_norm_squared)
+        velocity_times_d_cos_angle_by_d_xj = -velocity_times_d_cos_angle_by_d_xi - velocity_times_d_cos_angle_by_d_xk
+        return (d_potential_by_d_angle * d_angle_by_d_cos_angle * velocity_times_d_cos_angle_by_d_xi,
+                d_potential_by_d_angle * d_angle_by_d_cos_angle * velocity_times_d_cos_angle_by_d_xj,
+                d_potential_by_d_angle * d_angle_by_d_cos_angle * velocity_times_d_cos_angle_by_d_xk)

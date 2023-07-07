@@ -20,4 +20,4 @@
 # Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 """Module which stores the version of the JeLLyFysh application."""
-__version__ = "1.1.0.0"
+__version__ = "2.0.0.0-alpha"

@@ -27,18 +27,20 @@ in the run. The latter allows all modules to construct all possible global state
 of the same composite point object.
 Moreover, this package gives access to a function which generates a random position and an instance of a
 PeriodicBoundaries class (see setting.periodic_boundaries.periodic_boundaries.PeriodicBoundaries).
-To initialize the attributes of this package, one should use either a setter class (i.e. a class inheriting from
+
+To initialize the attributes of this package, one should use either a setter class (i.e., a class inheriting from
 the abstract Setting class in setting.setting.py) or use the public methods. The final more specialized settings (for
 example a hypercubic setting) should be defined in their own module with a setter class. Such modules can define
 additional attributes, but all the attributes listed here are also accessible in the given module, if such a setter
-class was used. A setting module must define a reset function if the reset function of this package should work.
+class was used. A setting module must define a reset, getstate and setstate function.
+
 Internally, this package will store the initialized setting module. Only one module can be initialized, although
-the module can give similar modules and a way how these modules should be initialized (for example a hypercubic
-setting can also initialize a hypercuboid setting, by this all modules implemented for a hypercuboid setting will also
+the module can give similar modules and a way how these modules should be initialized (for example, a hypercubic
+setting can also initialize a hypercuboid setting; by this all modules implemented for a hypercuboid setting will also
 work when a hypercubic setting is used).
 """
 import logging
-from typing import Callable, Sequence
+from typing import Any, Callable, MutableMapping, Sequence
 from types import ModuleType
 from .periodic_boundaries import PeriodicBoundaries
 
@@ -67,6 +69,56 @@ _initialized_setting_module = None
 _similar_modules = None
 
 _logger = logging.getLogger(__name__)
+
+
+def getstate() -> MutableMapping[str, Any]:
+    """
+    Return a state of this module that can be pickled.
+
+    This function stores the global variables beta, dimension, number_of_root_nodes, number_of_nodes_per_root_node, and
+    number_of_node_levels. Also, it stores the initialized setting module and its state, so that it can be initialized
+    in the setstate method.
+
+    Returns
+    -------
+    MutableMapping[str, Any]
+        The state that can be pickled.
+    """
+    state = {"beta": beta, "dimension": dimension, "number_of_root_nodes": number_of_root_nodes,
+             "number_of_nodes_per_root_node": number_of_nodes_per_root_node,
+             "number_of_node_levels": number_of_node_levels, "_initialized_setting_module": _initialized_setting_module}
+    # noinspection PyUnresolvedReferences
+    state.update(_initialized_setting_module.getstate())
+    return state
+
+
+def setstate(state: MutableMapping[str, Any]) -> None:
+    """
+    Use the state dictionary to initialize this module.
+
+    This function initializes the setting module that is specified in the state, and sets the number_of_root_nodes,
+    number_of_nodes_per_root_node, and number_of_node_levels variables.
+
+    Parameters
+    ----------
+    state : MutableMapping[str, Any]
+        The state.
+
+    Raises
+    ------
+    AssertionError
+        If the state dictionary misses necessary keys for the initialization of this module.
+    """
+    assert "_initialized_setting_module" in state
+    state["_initialized_setting_module"].setstate(state)
+    assert beta == state["beta"]
+    assert dimension == state["dimension"]
+    assert "number_of_root_nodes" in state
+    set_number_of_root_nodes(state["number_of_root_nodes"])
+    assert "number_of_nodes_per_root_node" in state
+    set_number_of_nodes_per_root_node(state["number_of_nodes_per_root_node"])
+    assert "number_of_node_levels" in state
+    set_number_of_node_levels(state["number_of_node_levels"])
 
 
 # noinspection PyTypeChecker

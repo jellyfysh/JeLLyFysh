@@ -23,11 +23,12 @@
  ************************************************************************************************************************/
 
 /** @file merged_image_coulomb_potential.c
- *  @brief Definitions of functions to compute the space derivative of the merged image coulomb potential along the
- *         positive x direction.
+ *  @brief Definitions of functions to compute the directional time derivative of the merged image coulomb potential
+ *         along a given velocity vector of the active unit.
  *
  *  This file contains the functions to create, copy, and destroy a struct containing all parameters to compute the
- *  space derivative of the merged image coulomb potential along the positive x direction in the derivative function.
+ *  directional time derivative of the merged image coulomb potential along a given velocity vector of the active unit
+ *  in the derivative function.
  *
  *  @author The JeLLyFysh organization.
  *  @bug No known bugs.
@@ -93,7 +94,8 @@ struct MergedImageCoulombPotential *construct_merged_image_coulomb_potential(int
 
     for (k = 0; k < fourier_cutoff + 1; k++) {
         for (j = 0; j < fourier_cutoff + 1; j++) {
-            for (i = 1; i < fourier_cutoff + 1; i++) {
+            for (i = 0; i < fourier_cutoff + 1; i++) {
+                // For i = 0 the entry of fourier_array is zero anyways.
                 if (j == 0 && k == 0) {
                     coefficient = 1.0;
                 } else if (k == 0 || j == 0) {
@@ -102,8 +104,9 @@ struct MergedImageCoulombPotential *construct_merged_image_coulomb_potential(int
                     coefficient = 4.0;
                 }
                 norm_sq = i * i + j * j + k * k;
-                fourier_array[i][j][k] = 4.0 * i * coefficient / (norm_sq * system_length * system_length)
-                                         * exp(- M_PI * M_PI * norm_sq / (alpha * alpha));
+                // Check if i is zero explicitly because i = j = k = 0 would yield 0.0 / 0.0 = nan otherwise.
+                fourier_array[i][j][k] = i != 0 ? 4.0 * i * coefficient / (norm_sq * system_length * system_length)
+                                                  * exp(- M_PI * M_PI * norm_sq / (alpha * alpha)) : 0.0;
             }
         }
     }
@@ -176,7 +179,7 @@ struct MergedImageCoulombPotential *copy_merged_image_coulomb_potential(struct M
     }
     for (k = 0; k < potential->fourier_cutoff + 1; k++) {
         for (j = 0; j < potential->fourier_cutoff + 1; j++) {
-            for (i = 1; i < potential->fourier_cutoff + 1; i++) {
+            for (i = 0; i < potential->fourier_cutoff + 1; i++) {
                 copied_fourier_array[i][j][k] = potential->fourier_array[i][j][k];
             }
         }
@@ -193,74 +196,83 @@ struct MergedImageCoulombPotential *copy_merged_image_coulomb_potential(struct M
 }
 
 
-/** @brief Compute the space derivative of the merged image coulomb potential along the positive x direction evaluated
- *         at the given separation.
+/** @brief  Return the gradient of the merged image Coulomb potential evaluated at the given separation.
  *
  *  @param potential The pointer to the MergedImageCoulombPotential on the heap whose parameters should be used.
- *  @param sx The x component of the separation where the derivative should be evaluated.
- *  @param sy The y component of the separation where the derivative should be evaluated.
- *  @param sz The z component of the separation where the derivative should be evaluated.
- *  @return The space derivative.
+ *  @param separation The separation where the derivative should be evaluated.
+ *  @return The gradient with respect to the position of the active unit.
  */
-double derivative(struct MergedImageCoulombPotential *potential, double sx, double sy, double sz) {
-    double derivative = 0.0;
+struct Gradient gradient(struct MergedImageCoulombPotential *potential, double separation[3]) {
+    struct Gradient gradient = {0.0, 0.0, 0.0};
 
-    // First compute the part of the Ewald sum of the derivative in position space along the positive x direction.
-    double vector_norm, vector_sq, vector_x, vector_y_sq, vector_z_sq;
+    // First compute the part of the Ewald sum of the derivative in position space.
+    double vector_norm, vector_sq, vector_x, vector_y, vector_z, const_factor;
     int cutoff_x, cutoff_y;
     int i, j, k;
     for (k = -potential->position_cutoff; k < potential->position_cutoff + 1; k++) {
-        vector_z_sq = (sz + k * potential->system_length) * (sz + k * potential->system_length);
+        vector_z = separation[2] + k * potential->system_length;
         cutoff_y = (int) sqrt(potential->position_cutoff_sq - k * k);
         for (j = -cutoff_y; j < cutoff_y + 1; j++) {
-            vector_y_sq = (sy + j * potential->system_length) * (sy + j * potential->system_length);
+            vector_y = separation[1] + j * potential->system_length;
             cutoff_x = (int) sqrt(potential->position_cutoff_sq - j * j - k * k);
             for (i = -cutoff_x; i < cutoff_x + 1; i++) {
-                vector_x = sx + i * potential->system_length;
-                vector_sq = vector_x * vector_x + vector_y_sq + vector_z_sq;
+                vector_x = separation[0] + i * potential->system_length;
+                vector_sq = vector_x * vector_x + vector_y * vector_y + vector_z * vector_z;
                 vector_norm = sqrt(vector_sq);
-                derivative += vector_x * (potential->two_alpha_over_length_root_pi
-                                          * exp(-potential->alpha_over_length_sq * vector_sq)
-                                          + erfc(potential->alpha_over_length * vector_norm) / vector_norm) / vector_sq;
+                const_factor = (potential->two_alpha_over_length_root_pi
+                                * exp(-potential->alpha_over_length_sq * vector_sq)
+                                + erfc(potential->alpha_over_length * vector_norm) / vector_norm) / vector_sq;
+                gradient.gx += vector_x * const_factor;
+                gradient.gy += vector_y * const_factor;
+                gradient.gz += vector_z * const_factor;
             }
         }
     }
 
-    // Then compute the part of the Ewald sum of the derivative in Fourier space along the positive x direction.
-    double delta_cos_x = cos(potential->two_pi_over_length * sx);
-    double delta_sin_x = sin(potential->two_pi_over_length * sx);
-    double delta_cos_y = cos(potential->two_pi_over_length * sy);
-    double delta_sin_y = sin(potential->two_pi_over_length * sy);
-    double delta_cos_z = cos(potential->two_pi_over_length * sz);
-    double delta_sin_z = sin(potential->two_pi_over_length * sz);
-    double cos_x = delta_cos_x;
-    double sin_x = delta_sin_x;
+    // Then compute the part of the Ewald sum of the derivative in Fourier space.
+    double delta_cos_x = cos(potential->two_pi_over_length * separation[0]);
+    double delta_sin_x = sin(potential->two_pi_over_length * separation[0]);
+    double delta_cos_y = cos(potential->two_pi_over_length * separation[1]);
+    double delta_sin_y = sin(potential->two_pi_over_length * separation[1]);
+    double delta_cos_z = cos(potential->two_pi_over_length * separation[2]);
+    double delta_sin_z = sin(potential->two_pi_over_length * separation[2]);
+    double cos_x = 1.0;
+    double sin_x = 0.0;
     double cos_y = 1.0;
     double sin_y = 0.0;
     double cos_z = 1.0;
     double sin_z = 0.0;
     double store_cos_value;
+    int cutoff_z;
 
-    for (i = 1; i < potential->fourier_cutoff + 1; i++) {
+    for (i = 0; i < potential->fourier_cutoff + 1; i++) {
         cutoff_y = (int) sqrt(potential->fourier_cutoff_sq - i * i);
         for (j = 0; j < cutoff_y + 1; j++) {
-            cutoff_x = (int) sqrt(potential->fourier_cutoff_sq - i * i - j * j);
-            for (k = 0; k < cutoff_x + 1; k++) {
-                derivative += potential->fourier_array[i][j][k] * sin_x * cos_y * cos_z;
+            cutoff_z = (int) sqrt(potential->fourier_cutoff_sq - i * i - j * j);
+            for (k = 0; k < cutoff_z + 1; k++) {
+                gradient.gx += potential->fourier_array[i][j][k] * sin_x * cos_y * cos_z;
+                // fourier_array stores i * factor, where the factor depends on the squared vector q^2 = (i, j, k)^2.
+                // In order to get the appropriate prefactor j * factor here, we can therefore just permute the indices.
+                gradient.gy += potential->fourier_array[j][k][i] * cos_x * sin_y * cos_z;
+                gradient.gz += potential->fourier_array[k][i][j] * cos_x * cos_y * sin_z;
 
-                if (k != cutoff_x) {
+                if (k != cutoff_z) {
+                    // Use cos(a * (k + 1) * x) = cos(a * k * x) * cos(a * x) - sin(a * k * x) * sin(a * x)
+                    // and sin(a * (k + 1) * x) = sin(a * k * x) * cos(a * x) + cos(a * k * x) * sin(a * x),
+                    // where a is some constant factor.
                     store_cos_value = cos_z;
-                    cos_z = store_cos_value * delta_cos_z - sin_z * delta_sin_z;
+                    cos_z = cos_z * delta_cos_z - sin_z * delta_sin_z;
                     sin_z = sin_z * delta_cos_z + store_cos_value * delta_sin_z;
                 } else if (j != cutoff_y) {
                     store_cos_value = cos_y;
-                    cos_y = store_cos_value * delta_cos_y - sin_y * delta_sin_y;
+                    cos_y = cos_y * delta_cos_y - sin_y * delta_sin_y;
                     sin_y = sin_y * delta_cos_y + store_cos_value * delta_sin_y;
+                    // If we arrive here, k will start at zero again and we reset cos_z and sin_z.
                     cos_z = 1.0;
                     sin_z = 0.0;
                 } else if (i != potential->fourier_cutoff) {
                     store_cos_value = cos_x;
-                    cos_x = store_cos_value * delta_cos_x - sin_x * delta_sin_x;
+                    cos_x = cos_x * delta_cos_x - sin_x * delta_sin_x;
                     sin_x = sin_x * delta_cos_x + store_cos_value * delta_sin_x;
                     cos_y = 1.0;
                     sin_y = 0.0;
@@ -270,5 +282,99 @@ double derivative(struct MergedImageCoulombPotential *potential, double sx, doub
             }
         }
     }
-    return derivative;
+    return gradient;
+}
+
+
+/** @brief  Return the directional time derivative along a given velocity vector of the active unit of the merged image
+ *          coulomb potential evaluated at the given separation.
+ *
+ *  @param potential The pointer to the MergedImageCoulombPotential on the heap whose parameters should be used.
+ *  @param velocity The velocity of the active unit.
+ *  @param separation The separation where the derivative should be evaluated.
+ *  @return The space derivative.
+ */
+double derivative(struct MergedImageCoulombPotential *potential, double velocity[3], double separation[3]) {
+    double derivative_x = 0.0;
+    double derivative_y = 0.0;
+    double derivative_z = 0.0;
+
+    // First compute the part of the Ewald sum of the derivative in position space.
+    double vector_norm, vector_sq, vector_x, vector_y, vector_z, const_factor;
+    int cutoff_x, cutoff_y;
+    int i, j, k;
+    for (k = -potential->position_cutoff; k < potential->position_cutoff + 1; k++) {
+        vector_z = separation[2] + k * potential->system_length;
+        cutoff_y = (int) sqrt(potential->position_cutoff_sq - k * k);
+        for (j = -cutoff_y; j < cutoff_y + 1; j++) {
+            vector_y = separation[1] + j * potential->system_length;
+            cutoff_x = (int) sqrt(potential->position_cutoff_sq - j * j - k * k);
+            for (i = -cutoff_x; i < cutoff_x + 1; i++) {
+                vector_x = separation[0] + i * potential->system_length;
+                vector_sq = vector_x * vector_x + vector_y * vector_y + vector_z * vector_z;
+                vector_norm = sqrt(vector_sq);
+                const_factor = (potential->two_alpha_over_length_root_pi
+                                * exp(-potential->alpha_over_length_sq * vector_sq)
+                                + erfc(potential->alpha_over_length * vector_norm) / vector_norm) / vector_sq;
+                derivative_x += vector_x * const_factor;
+                derivative_y += vector_y * const_factor;
+                derivative_z += vector_z * const_factor;
+            }
+        }
+    }
+
+    // Then compute the part of the Ewald sum of the derivative in Fourier space.
+    double delta_cos_x = cos(potential->two_pi_over_length * separation[0]);
+    double delta_sin_x = sin(potential->two_pi_over_length * separation[0]);
+    double delta_cos_y = cos(potential->two_pi_over_length * separation[1]);
+    double delta_sin_y = sin(potential->two_pi_over_length * separation[1]);
+    double delta_cos_z = cos(potential->two_pi_over_length * separation[2]);
+    double delta_sin_z = sin(potential->two_pi_over_length * separation[2]);
+    double cos_x = 1.0;
+    double sin_x = 0.0;
+    double cos_y = 1.0;
+    double sin_y = 0.0;
+    double cos_z = 1.0;
+    double sin_z = 0.0;
+    double store_cos_value;
+    int cutoff_z;
+
+    for (i = 0; i < potential->fourier_cutoff + 1; i++) {
+        cutoff_y = (int) sqrt(potential->fourier_cutoff_sq - i * i);
+        for (j = 0; j < cutoff_y + 1; j++) {
+            cutoff_z = (int) sqrt(potential->fourier_cutoff_sq - i * i - j * j);
+            for (k = 0; k < cutoff_z + 1; k++) {
+                derivative_x += potential->fourier_array[i][j][k] * sin_x * cos_y * cos_z;
+                // fourier_array stores i * factor, where the factor depends on the squared vector q^2 = (i, j, k)^2.
+                // In order to get the appropriate prefactor j * factor here, we can therefore just permute the indices.
+                derivative_y += potential->fourier_array[j][k][i] * cos_x * sin_y * cos_z;
+                derivative_z += potential->fourier_array[k][i][j] * cos_x * cos_y * sin_z;
+
+                if (k != cutoff_z) {
+                    // Use cos(a * (k + 1) * x) = cos(a * k * x) * cos(a * x) - sin(a * k * x) * sin(a * x)
+                    // and sin(a * (k + 1) * x) = sin(a * k * x) * cos(a * x) + cos(a * k * x) * sin(a * x),
+                    // where a is some constant factor.
+                    store_cos_value = cos_z;
+                    cos_z = cos_z * delta_cos_z - sin_z * delta_sin_z;
+                    sin_z = sin_z * delta_cos_z + store_cos_value * delta_sin_z;
+                } else if (j != cutoff_y) {
+                    store_cos_value = cos_y;
+                    cos_y = cos_y * delta_cos_y - sin_y * delta_sin_y;
+                    sin_y = sin_y * delta_cos_y + store_cos_value * delta_sin_y;
+                    // If we arrive here, k will start at zero again and we reset cos_z and sin_z.
+                    cos_z = 1.0;
+                    sin_z = 0.0;
+                } else if (i != potential->fourier_cutoff) {
+                    store_cos_value = cos_x;
+                    cos_x = cos_x * delta_cos_x - sin_x * delta_sin_x;
+                    sin_x = sin_x * delta_cos_x + store_cos_value * delta_sin_x;
+                    cos_y = 1.0;
+                    sin_y = 0.0;
+                    cos_z = 1.0;
+                    sin_z = 0.0;
+                }
+            }
+        }
+    }
+    return velocity[0] * derivative_x + velocity[1] * derivative_y + velocity[2] * derivative_z;
 }

@@ -35,12 +35,18 @@ ffi_builder = FFI()
 # See https://cffi.readthedocs.io/en/latest/overview.html#if-you-don-t-have-an-already-installed-c-library-to-call.
 ffi_builder.cdef(r"""
 struct MergedImageCoulombPotential;
+struct Gradient {
+    double gx;
+    double gy;
+    double gz;
+};
 struct MergedImageCoulombPotential *construct_merged_image_coulomb_potential(int fourier_cutoff, int position_cutoff,
                                                                              double alpha, double system_length);
 void destroy_merged_image_coulomb_potential(struct MergedImageCoulombPotential *potential);
 size_t estimated_size(struct MergedImageCoulombPotential *potential);
 struct MergedImageCoulombPotential *copy_merged_image_coulomb_potential(struct MergedImageCoulombPotential *pot);
-double derivative(struct MergedImageCoulombPotential *potential, double sx, double sy, double sz);
+struct Gradient gradient(struct MergedImageCoulombPotential *potential, double separation[3]);
+double derivative(struct MergedImageCoulombPotential *potential, double velocity[3], double separation[3]);
 """)
 
 # First argument is name of the output C extension that is used in merged_image_coulomb_potential.py.

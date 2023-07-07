@@ -123,3 +123,72 @@ class EventHandler(metaclass=ABCMeta):
             The out-state.
         """
         raise NotImplementedError
+
+
+class EventHandlerWithUnconfirmedEvents(EventHandler, metaclass=ABCMeta):
+    """
+    Abstract class for an event handler that can create unconfirmed events.
+
+    Events in JF can be not confirmed if a bounding potential was used. If such an unconfirmed event led to the smallest
+    candidate event time, only the event handler that was responsible for the unconfirmed event needs to compute
+    a new candidate event time. Other events do not have to be trashed and recomputed.
+    An unconfirmed event has 'None' as its out-state. A new candidate event time can then be calculated by using the
+    resend_event_time method which never receives any arguments. This is because the (possibly) necessary in-state was
+    should already be stored internally in the call of the send_event_time method.
+    """
+
+    def __init__(self, **kwargs: Any):
+        """
+        The constructor of the EventHandlerWithUnconfirmedEvents class.
+
+        This class is designed for cooperative inheritance, meaning that it passes through all unused kwargs in the
+        init to the next class in the MRO via super.
+
+        Parameters
+        ----------
+        kwargs : Any
+            Additional kwargs which are passed to the __init__ method of the next class in the MRO.
+        """
+        super().__init__(**kwargs)
+
+    @abstractmethod
+    def send_out_state(self, *args: Any) -> Union[Any, None]:
+        """
+        Return the out-state.
+
+        The precise format of the out-state of a confirmed event depends on the used state handler.
+        If the send_event_time method did not receive the complete in-state, the remaining part is the argument of
+        this method. The precise format of this also depends on the used state handler.
+        If the event is not confirmed, None is returned as the out-state.
+
+        Parameters
+        ----------
+        args : Any
+            The remaining part of the in-state needed to calculate the out-state (optional).
+
+        Returns
+        -------
+        Any or None
+            The out-state.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def resend_event_time(self) -> Union[Time, Tuple[Time, Sequence[Any]]]:
+        """
+        Return the candidate event time, optionally together with arguments needed by the mediator to construct
+        arguments of the send_out_state method, based on the internally stored in-state.
+
+        This method should use the in-state that was internally stored in the send_event_time method.
+        The precise format of the in-state depends on the event handler and on the used state handler.
+        If this method returns objects which are needed by the mediator to construct the arguments of the send_out_state
+        method, this method should return a tuple of the event time and a sequence of these arguments. This sequence is
+        unpacked in the mediator when they are passed to the method which gets the arguments.
+
+        Returns
+        -------
+        base.time.Time or (base.time.Time, Sequence[Any])
+            The candidate event time optionally together with a sequence of arguments needed to construct the arguments
+            of the send_out_state method,
+        """
+        raise NotImplemented

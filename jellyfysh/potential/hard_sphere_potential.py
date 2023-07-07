@@ -22,11 +22,11 @@
 """Module for the HardSpherePotential class."""
 import logging
 from math import sqrt
+from typing import Sequence
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base.vectors import dot, norm_sq
 from jellyfysh.potential import InvertiblePotential
-from typing import Sequence
 
 
 # noinspection PyMethodOverriding
@@ -55,12 +55,16 @@ class HardSpherePotential(InvertiblePotential):
         base.exceptions.ConfigurationError
             If the radius r is not larger than 0.
         """
+        self.init_arguments = lambda: {"radius": radius}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__, radius=radius)
         if not radius > 0.0:
             raise ConfigurationError("The class {0} can only be used with a radius bigger than 0.0."
                                      .format(self.__class__.__name__))
         super().__init__()
         self._diameter_squared = 4.0 * radius * radius
+
+    def init_arguments(self):
+        raise NotImplementedError
 
     def displacement(self, velocity: Sequence[float], separation: Sequence[float]) -> float:
         """
@@ -97,6 +101,35 @@ class HardSpherePotential(InvertiblePotential):
         return ((velocity_dot_separation - sqrt(square_root_term)) / velocity_squared
                 if square_root_term >= 0.0 and velocity_dot_separation >= 0.0
                 else HardSpherePotential._inf)
+
+    def gradient(self, separation: Sequence[float]) -> Sequence[float]:
+        """
+        Return the gradient of the potential evaluated at the given separation.
+
+        The hard-sphere potential can be written as U(r_ij) = a * Theta(2 * r - |r_ij|) with a=inf. The derivative with
+        respect to x_i, for example, is thus given by a * (x_j - x_i) / |r_ij| * delta(2 * r - |r_ij|). Therefore,
+        the gradient of this potential vanishes everywhere, except at |r_ij| = 2 * r where it is infinite. This method
+        asserts that the given separation has a norm of 2 * r. If so, even though the gradient is infinite, it still
+        returns the separation vector itself, which points in the same direction as the gradient. This result should
+        only be used to change the velocity in an event in, e.g., reflective ECMC.
+
+        Parameters
+        ----------
+        separation : Sequence[float]
+            The separation vector r_ij.
+
+        Returns
+        -------
+        Sequence[float]
+            The gradient with respect to the position r_i of the active unit.
+
+        Raises
+        ------
+        AssertionError
+        If the norm of the given separation is not 2 * r.
+        """
+        assert abs(norm_sq(separation) - self._diameter_squared) < 1.0e-13
+        return [s for s in separation]
 
     def derivative(self, velocity: Sequence[float], separation: Sequence[float]) -> float:
         """

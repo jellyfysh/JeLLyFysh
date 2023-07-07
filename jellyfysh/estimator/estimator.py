@@ -21,7 +21,8 @@
 #
 """Module for the abstract Estimator class."""
 from abc import ABCMeta, abstractmethod
-from typing import Any, Sequence, Tuple, Union
+from typing import Sequence, Tuple, Union
+from jellyfysh.base import vectors
 from jellyfysh.potential import Potential
 import jellyfysh.setting as setting
 
@@ -77,7 +78,6 @@ class Estimator(metaclass=ABCMeta):
         self._get_derivative = None
         self._prefactor = prefactor
         self._empirical_bound = empirical_bound
-        self._derivative = None
         self._number_charges = self._potential.number_charge_arguments
         if periodic_boundaries:
             self._correct_separation = setting.periodic_boundaries.correct_separation
@@ -85,7 +85,11 @@ class Estimator(metaclass=ABCMeta):
             self._correct_separation = lambda separation: None
 
     @abstractmethod
-    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: int,
+    def init_arguments(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def derivative_bound(self, lower_corner: Sequence[float], upper_corner: Sequence[float], direction: Sequence[float],
                          calculate_lower_bound: bool = False):
         """
         Estimate an upper and an optional lower bound of the potential's space derivative along the given direction
@@ -125,6 +129,8 @@ class Estimator(metaclass=ABCMeta):
             If the length of the lower or upper corner does not equal the dimension.
             If the lower corner is not smaller than the upper corner in every direction.
         """
+        assert len(direction) == setting.dimension
+        assert abs(vectors.norm(direction) - 1.0) < 1.0e-13
         assert len(lower_corner) == setting.dimension
         assert len(upper_corner) == setting.dimension
         for i in range(setting.dimension):
@@ -165,33 +171,3 @@ class Estimator(metaclass=ABCMeta):
             The multiplicative correction factor.
         """
         raise NotImplementedError
-
-    def _potential_derivative(self, direction: int, *args: Any, **kwargs: Any) -> float:
-        """
-        Return the potential's space derivative along the given direction and for the given args and kwargs.
-
-        This method converts the direction to a velocity to construct the necessary velocity argument for the
-        potential's derivative argument. All further args and kwargs are just passed through.
-
-        Parameters
-        ----------
-        direction : int
-            Direction with respect to which the space derivative of the potential is taken.
-        args : Any
-            Further arguments that are passed to the derivative method of the potential.
-        kwargs : Any
-            Further keyword arguments that are passed to the derivative method of the potential.
-
-        Returns
-        -------
-        float
-            The space derivative of the potential along the given direction and for the given args and kwargs.
-
-        Raises
-        ------
-        AssertionError
-            If the given direction is negative or too large for the dimension in the setting package.
-        """
-        assert 0 <= direction < setting.dimension
-        return self._potential.derivative([0.0 if index != direction else 1.0 for index in range(setting.dimension)],
-                                          *args, **kwargs)

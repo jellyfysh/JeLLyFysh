@@ -159,6 +159,7 @@ class DcdOutputHandler(MDAnalysisOutputHandler):
             The state that can be pickled.
         """
         super_instance_dictionary = super().__getstate__()
+        # self._writer.close()
         del super_instance_dictionary["_writer"]
         return super_instance_dictionary
 

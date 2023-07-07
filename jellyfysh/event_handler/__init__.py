@@ -20,4 +20,4 @@
 # Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 """Export the abstract EventHandler class."""
-from .event_handler import EventHandler
+from .event_handler import EventHandler, EventHandlerWithUnconfirmedEvents

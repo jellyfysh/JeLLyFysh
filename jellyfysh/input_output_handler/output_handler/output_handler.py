@@ -22,7 +22,8 @@
 """Module for the abstract OutputHandler class."""
 from abc import ABCMeta, abstractmethod
 import os
-from typing import Any
+import shutil
+from typing import Any, MutableMapping
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.uuid import get_uuid
 
@@ -108,7 +109,7 @@ class HardBufferedTextWriter(object):
             The filename.
         """
         self._filename = filename
-        self._tmp_file = open(filename + '.tmp', 'w')
+        self._tmp_file = open(filename + ".tmp", "w")
         print("# Run identification hash: {0}".format(get_uuid()), file=self)
 
     def write(self, string: str) -> None:
@@ -125,4 +126,44 @@ class HardBufferedTextWriter(object):
     def close(self) -> None:
         """Close the temporary file and rename it into the original filename."""
         self._tmp_file.close()
-        os.system('mv ' + self._filename + '.tmp ' + self._filename)
+        os.rename(self._filename + ".tmp", self._filename)
+
+    def __getstate__(self) -> MutableMapping[str, Any]:
+        """
+        Return a state of this class that can be pickled.
+
+        This method copies the current content of the temporary file to a dump file. For the dump file, the .tmp file
+        suffix of the temporary file is replaced by .dump. The self._tmp_file attribute is then removed from the
+        self.__dict__ dictionary so that it can be pickled (because writable files cannot be pickled).
+
+        Returns
+        -------
+        MutableMapping[str, Any]
+            The state that can be pickled.
+        """
+        self._tmp_file.flush()
+        shutil.copy2(self._filename + ".tmp", self._filename + ".dump")
+        state = self.__dict__.copy()
+        del state["_tmp_file"]
+        return state
+
+    def __setstate__(self, state: MutableMapping[str, Any]) -> None:
+        """
+        Use the state dictionary to initialize this class.
+
+        This method copies the dump file, that was created in the __getstate__ method, to a new temporary file. This
+        temporary file is then reopened and stored in the self._tmp_file attribute.
+
+        Parameters
+        ----------
+        state : MutableMapping[str, Any]
+            The state.
+
+        Raises
+        ------
+        If the dump file with the file suffix .dump does not exist.
+        """
+        self.__dict__.update(state)
+        assert os.path.exists(self._filename + ".dump")
+        shutil.copy2(self._filename + ".dump", self._filename + ".tmp")
+        self._tmp_file = open(self._filename + ".tmp", "a")

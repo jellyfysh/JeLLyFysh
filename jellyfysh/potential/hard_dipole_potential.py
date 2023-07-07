@@ -22,11 +22,11 @@
 """Module for the HardDipolePotential class."""
 import logging
 from math import sqrt
+from typing import Sequence
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base.vectors import dot, norm_sq
 from jellyfysh.potential import InvertiblePotential
-from typing import Sequence
 
 
 # noinspection PyMethodOverriding
@@ -57,6 +57,8 @@ class HardDipolePotential(InvertiblePotential):
             If the maximum separation R is not larger than 0.
             If the minimum separation r is not smaller than the maximum separation R.
         """
+        self.init_arguments = lambda: {"minimum_separation": minimum_separation,
+                                       "maximum_separation": maximum_separation}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            minimum_separation=minimum_separation, maximum_separation=maximum_separation)
         if not minimum_separation > 0.0:
@@ -71,6 +73,9 @@ class HardDipolePotential(InvertiblePotential):
         super().__init__()
         self._minimum_separation_squared = minimum_separation * minimum_separation
         self._maximum_separation_squared = maximum_separation * maximum_separation
+
+    def init_arguments(self):
+        raise NotImplementedError
 
     def displacement(self, velocity: Sequence[float], separation: Sequence[float]) -> float:
         """
@@ -112,6 +117,38 @@ class HardDipolePotential(InvertiblePotential):
                                     - velocity_squared * (separation_squared - self._maximum_separation_squared))
         assert maximum_square_root_term >= 0.0
         return (velocity_dot_separation + sqrt(maximum_square_root_term)) / velocity_squared
+
+    def gradient(self, separation: Sequence[float]) -> Sequence[float]:
+        """
+        Return the gradient of the potential evaluated at the given separation.
+
+        The hard-dipole potential can be written as U(r_ij) = a * (Theta(r - |r_ij|) + Theta(|r_ij| - R)) with a=inf.
+        The derivative with respect to x_i, for example, is thus given by
+        a * (x_j - x_i) / |r_ij| * (delta(r - |r_ij|) - delta(|r_ij| - R)). Therefore, the gradient of this potential
+        vanishes everywhere, except at |r_ij| = r where it is infinite and |r_ij|, where it is negative infinity. This
+        method asserts that the given separation has a norm of r or R. If so, even though the gradient is infinite, it
+        still returns the separation vector itself, which points in the same direction as the gradient at |r_ij| = r and
+        in the opposite direction ar |r_ij| = R. This result is sufficient to change the velocity in an event in, e.g.,
+        reflective ECMC, and should only be used for that.
+
+        Parameters
+        ----------
+        separation : Sequence[float]
+            The separation vector r_ij.
+
+        Returns
+        -------
+        Sequence[float]
+            The gradient with respect to the position r_i of the active unit.
+
+        Raises
+        ------
+        AssertionError
+        If the norm of the given separation is not r or R.
+        """
+        assert (abs(norm_sq(separation) - self._minimum_separation_squared) < 1.0e-13
+                or abs(norm_sq(separation) - self._maximum_separation_squared) < 1.0e-13)
+        return [s for s in separation]
 
     def derivative(self, velocity: Sequence[float], separation: Sequence[float]) -> float:
         """

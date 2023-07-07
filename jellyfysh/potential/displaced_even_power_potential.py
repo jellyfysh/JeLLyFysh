@@ -33,12 +33,9 @@ class DisplacedEvenPowerPotential(MexicanHatPotential):
     """
     This class implements the displaced even power pair potential U_ij = k * (|r_ij| - r_0) ** p.
 
-    k is a prefactor, r_ij = r_j - r_i is the separation between the units and p > 0 even is the power.
+    Here, k is a prefactor, r_ij = r_j - r_i is the separation between the units, and p > 0 even is the power.
     This class assumes that i is the active unit. The given potential has the shape of a mexican hat, therefore this
     class inherits from .abstracts.MexicanHatPotential.
-
-    This potential only allows for standard velocities (i.e., velocities parallel to one of the cartesian coordinate
-    axes going in the positive direction) of the active unit.
     """
 
     def __init__(self, equilibrium_separation: float, power: int, prefactor: float = 1.0) -> None:
@@ -59,55 +56,82 @@ class DisplacedEvenPowerPotential(MexicanHatPotential):
         base.exceptions.ConfigurationError
             If the power p is not larger than 0 or if p is odd.
         """
+        self.init_arguments = lambda: {"equilibrium_separation": equilibrium_separation, "power": power,
+                                       "prefactor": prefactor}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            equilibrium_separation=equilibrium_separation, power=power, prefactor=prefactor)
-        super().__init__(prefactor=prefactor, equilibrium_separation=equilibrium_separation)
         if not (power > 0 and power % 2 == 0):
             raise ConfigurationError("The potential {0} can only be used with "
                                      "a power > 0 divisible by 2!".format(self.__class__.__name__))
-        self._equilibrium_separation = equilibrium_separation
-        self._equilibrium_separation_squared = equilibrium_separation * equilibrium_separation
         self._power = power
         self._inverse_power = 1.0 / power
+        super().__init__(prefactor=prefactor, equilibrium_separation=equilibrium_separation)
 
-    def standard_velocity_derivative(self, direction: int, separation: Sequence[float]) -> float:
+    def init_arguments(self):
+        raise NotImplementedError
+
+    def gradient(self, separation: Sequence[float]) -> Sequence[float]:
         """
-        Return the space derivative of the potential along a positive direction parallel to one of the cartesian axes
-        for the given separation.
+        Return the gradient of the potential evaluated at the given separation.
 
         Parameters
         ----------
-        direction : int
-            The direction of the derivative.
+        separation : Sequence[float]
+            The separation vector r_ij.
+
+        Returns
+        -------
+        Sequence[float]
+            The gradient with respect to the position r_i of the active unit.
+        """
+        norm_of_separation = vectors.norm(separation)
+        prefactor = (-self._power * self._prefactor
+                     * (norm_of_separation - self._equilibrium_separation) ** (self._power - 1) / norm_of_separation)
+        return [prefactor * s for s in separation]
+
+    def derivative(self, velocity: Sequence[float], separation: Sequence[float]) -> float:
+        """
+        Return the directional time derivative along a given velocity vector of the active unit for the given
+        separation.
+
+        Parameters
+        ----------
+        velocity : Sequence[float]
+            The velocity of the active unit along which the directional derivative is computed.
         separation : Sequence[float]
             The separation vector r_ij.
 
         Returns
         -------
         float
-            The space derivative.
-        """
-        norm_of_separation = vectors.norm(separation)
-        return (- self._power * self._prefactor
-                * (norm_of_separation - self._equilibrium_separation) ** (self._power - 1)
-                * separation[direction] / norm_of_separation)
+            The directional time derivative.
 
-    def _potential(self, separation: Sequence[float]) -> float:
+        Raises
+        ------
+        AssertionError
+            If the velocity is zero.
         """
-        Return the potential for the given separation.
+        assert any(entry != 0.0 for entry in velocity)
+        norm_of_separation = vectors.norm(separation)
+        return (-self._power * self._prefactor
+                * (norm_of_separation - self._equilibrium_separation) ** (self._power - 1)
+                / norm_of_separation) * vectors.dot(separation, velocity)
+
+    def _potential(self, norm_of_separation: float) -> float:
+        """
+        Return the potential for the given absolute value of the separation.
 
         Parameters
         ----------
-        separation : Sequence[float]
-            The separation vector r_ij.
+        norm_of_separation : float
+            The absolute value |r_ij| of the separation vector.
 
         Returns
         -------
         float
             The potential.
         """
-        distance_from_minimum = vectors.norm(separation) - self._equilibrium_separation
-        return self._prefactor * distance_from_minimum ** self._power
+        return self._prefactor * (norm_of_separation - self._equilibrium_separation) ** self._power
 
     def _invert_potential_inside_minimum(self, potential: float) -> float:
         """

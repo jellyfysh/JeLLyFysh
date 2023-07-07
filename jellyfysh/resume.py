@@ -26,7 +26,7 @@ import random
 import sys
 import time
 from typing import Sequence
-import dill
+import cloudpickle
 from jellyfysh.base.exceptions import EndOfRun
 import jellyfysh.base.uuid as uuid
 from jellyfysh.run import add_general_parser_arguments, print_start_message, set_up_logging
@@ -65,7 +65,7 @@ def main() -> None:
     Use the command line argument to resume a dumped run of the JeLLyFysh application.
 
     First the command line arguments are parsed, and then the logging is set up. The dumping file specified in the
-    argument strings is then read using dill.
+    argument strings is then read using cloudpickle.
     Based on the dumping file, the setting package is initialized, the mediator is restored and the state of the random
     module is set.
     The run method of the mediator is executed until an EndOfRun exception is raised. This invokes the post_run method
@@ -78,10 +78,10 @@ def main() -> None:
 
     logger.info("Resuming run based on the dumping file {0}.".format(args.dumping_file))
     with open(args.dumping_file, "rb") as file:
-        mediator, dumped_setting, dumped_uuid, dumped_random_state = dill.load(file)
+        mediator, dumped_setting, dumped_uuid, dumped_random_state = cloudpickle.load(file)
     mediator.update_logging()
-    setting.__dict__.update(dumped_setting.__dict__)
-    uuid.__dict__.update(dumped_uuid.__dict__)
+    setting.setstate(dumped_setting)
+    uuid.setstate(dumped_uuid)
     random.setstate(dumped_random_state)
 
     logger.info("Run identification hash: {0}".format(uuid.get_uuid()))

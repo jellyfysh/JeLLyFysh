@@ -107,6 +107,10 @@ class Cells(metaclass=ABCMeta):
         pass
 
     @abstractmethod
+    def init_arguments(self):
+        raise NotImplementedError
+
+    @abstractmethod
     def yield_cells(self) -> Iterable[Cell]:
         """
         Generate all cells of the cell system.

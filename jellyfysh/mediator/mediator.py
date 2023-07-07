@@ -32,6 +32,7 @@ from jellyfysh.event_handler.abstracts.abstracts import EventHandlerWithOutputHa
 from jellyfysh.input_output_handler import InputOutputHandler
 from jellyfysh.scheduler import Scheduler
 from jellyfysh.state_handler import StateHandler
+from jellyfysh.state_handler.newtonian_tree_state_handler import NewtonianTreeStateHandler
 
 
 class MediatorAbstractClass(metaclass=ABCMeta):
@@ -109,6 +110,11 @@ class MediatorAbstractClass(metaclass=ABCMeta):
         run.py and resume.py.
         """
         self._input_output_handler.post_run()
+        for event_handler in self._event_handlers_list:
+            try:
+                event_handler.info()
+            except AttributeError:
+                pass
 
     def deactivate_output(self) -> None:
         """
@@ -334,7 +340,7 @@ class Mediator(MediatorAbstractClass, metaclass=ABCMeta):
         return ([self._state_handler.extract_from_global_state(identifier)
                  for identifier in active_root_unit_identifiers],)
 
-    def get_arguments_initial_chain_start_of_run_event_handler(self, initial_active_identifier: Any) -> Tuple[Any]:
+    def get_arguments_start_of_run_event_handler(self, initial_active_identifier: Any) -> Tuple[Any]:
         """
         Get the arguments for the send_out_state method of an InitialChainStartOfRunEventHandler.
 
@@ -362,7 +368,7 @@ class Mediator(MediatorAbstractClass, metaclass=ABCMeta):
 
         If the end-of-run event handler is connected to an output handler, it gets the full extracted global state as an
         argument of the write method to start the sampling.
-        Also, this method raises an base.exceptions.EndOfRun exception in order to end the run.
+        Also, this method raises a base.exceptions.EndOfRun exception in order to end the run.
 
         Raises
         ------
@@ -372,6 +378,23 @@ class Mediator(MediatorAbstractClass, metaclass=ABCMeta):
         if self._event_handler_with_shortest_event_time.output_handler is not None:
             self._input_output_handler.write(self._event_handler_with_shortest_event_time.output_handler,
                                              self._state_handler.extract_global_state())
+        active_global_state = self._state_handler.extract_active_global_state()
+        assert len(active_global_state) == 1
+        assert len(active_global_state[0].children) == 1
+        current_velocity = active_global_state[0].children[0].value.velocity
+        current_time_stamp = active_global_state[0].children[0].value.time_stamp
+        assert self._last_velocity is not None
+        assert self._last_time_stamp is not None
+        assert all(c == v for c, v in zip(current_velocity, self._last_velocity))
+        print(f"Final time stamp: {current_time_stamp}")
+        time_difference = current_time_stamp - self._last_time_stamp
+        self._total_distance += (sum(v * v for v in self._last_velocity) ** 0.5) * time_difference
+        self._total_time += time_difference
+        print(f"Total time: {self._total_time}")
+        print(f"Total distance: {self._total_distance}")
+        print(f"Average speed: {self._total_distance / self._total_time}")
+        for event_handler, number_events in self._number_events.items():
+            print(f"Number of events from {event_handler.__class__.__name__}: {number_events}")
         raise EndOfRun
 
     def mediate_sampling_event_handler(self) -> None:
@@ -391,5 +414,39 @@ class Mediator(MediatorAbstractClass, metaclass=ABCMeta):
         The output handler to which the dumping event handler is connected gets the mediator as an argument of the write
         method to dump the full run.
         """
-        self._input_output_handler.write(self._event_handler_with_shortest_event_time.output_handler,
-                                         self)
+        active_global_state = self._state_handler.extract_active_global_state()
+        assert len(active_global_state) == 1
+        assert len(active_global_state[0].children) == 1
+        current_velocity = active_global_state[0].children[0].value.velocity
+        current_time_stamp = active_global_state[0].children[0].value.time_stamp
+        assert self._last_velocity is not None
+        assert self._last_time_stamp is not None
+        assert all(c == v for c, v in zip(current_velocity, self._last_velocity))
+        print(f"Final time stamp: {current_time_stamp}")
+        time_difference = current_time_stamp - self._last_time_stamp
+        current_total_time = self._total_time + time_difference
+        current_total_distance = (self._total_distance
+                                  + (sum(v * v for v in self._last_velocity) ** 0.5) * time_difference)
+        current_average_speed = current_total_distance / current_total_time
+        print(f"Current time stamp: {current_time_stamp}")
+        print(f"Current total time: {current_total_time}")
+        print(f"Current total distance: {current_total_distance}")
+        print(f"Current average speed: {current_average_speed}")
+        for event_handler, number_events in self._number_events.items():
+            print(f"Number of events from {event_handler.__class__.__name__}: {number_events}")
+        self._input_output_handler.write(self._event_handler_with_shortest_event_time.output_handler, self)
+
+    def mediate_newtonian_end_of_chain_event_handler(self) -> None:
+        """
+        Mediating method of a NewtonianEndOfChainEventHandler.
+
+        In this method, the Newtonian state handler samples new velocities from the Maxwell-Boltzmann distribution for
+        all leaf units.
+
+        Raises
+        ------
+        AssertionError
+            If the state handler is not an instance of the NewtonianTreeStateHandler class.
+        """
+        assert isinstance(self._state_handler, NewtonianTreeStateHandler)
+        self._state_handler.sample_maxwell_boltzmann_velocities()

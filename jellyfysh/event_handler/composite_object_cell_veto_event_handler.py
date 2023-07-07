@@ -22,16 +22,19 @@
 """Module for the CompositeObjectCellVetoEventHandler class"""
 import logging
 import random
-from typing import Sequence, Union
+from typing import List, Sequence, Tuple, Union
 from jellyfysh.activator.internal_state.cell_occupancy.cells import PeriodicCells
 from jellyfysh.base.exceptions import bounding_potential_warning
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base.node import Node, yield_leaf_nodes
+from jellyfysh.base.time import Time
+from jellyfysh.base import vectors
 from jellyfysh.estimator import Estimator
 from jellyfysh.lifting import Lifting
 from jellyfysh.potential import Potential
 import jellyfysh.setting as setting
 from .abstracts import CellVetoEventHandler, TwoCompositeObjectBoundingPotentialEventHandler
+from .fibonacci_sphere import FibonacciSphere
 
 
 class CompositeObjectCellVetoEventHandler(CellVetoEventHandler, TwoCompositeObjectBoundingPotentialEventHandler):
@@ -61,7 +64,10 @@ class CompositeObjectCellVetoEventHandler(CellVetoEventHandler, TwoCompositeObje
     with 1 (see base.time.Time class for more information).
     """
 
-    def __init__(self, estimator: Estimator, lifting: Lifting, potential: Potential = None, charge: str = None) -> None:
+    def __init__(self, estimator: Estimator, lifting: Lifting, fibonacci_sphere: FibonacciSphere = FibonacciSphere(),
+                 potential: Potential = None, charge: str = None, derivative_bounds_input_filename: str = None,
+                 derivative_bounds_correction_factor: float = 1.0,
+                 derivative_bounds_output_filename: str = None) -> None:
         """
         The constructor of the CompositeObjectCellVetoEventHandler class.
 
@@ -80,9 +86,16 @@ class CompositeObjectCellVetoEventHandler(CellVetoEventHandler, TwoCompositeObje
         """
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            estimator=estimator.__class__.__name__, lifting=lifting.__class__.__name__,
-                           potential=None if potential is None else potential.__class__.__name__, charge=charge)
-        super().__init__(estimator=estimator, lifting=lifting,
-                         potential=estimator.potential if potential is None else potential, charge=charge)
+                           fibonacci_sphere=fibonacci_sphere.__class__.__name__,
+                           potential=None if potential is None else potential.__class__.__name__, charge=charge,
+                           derivative_bounds_input_filename=derivative_bounds_input_filename,
+                           derivative_bounds_correction_factor=derivative_bounds_correction_factor,
+                           derivative_bounds_output_filename=derivative_bounds_output_filename)
+        super().__init__(estimator=estimator, lifting=lifting, fibonacci_sphere=fibonacci_sphere,
+                         potential=estimator.potential if potential is None else potential, charge=charge,
+                         derivative_bounds_input_filename=derivative_bounds_input_filename,
+                         derivative_bounds_correction_factor=derivative_bounds_correction_factor,
+                         derivative_bounds_output_filename=derivative_bounds_output_filename)
         self._charge = charge
 
     # noinspection PyMethodOverriding
@@ -107,7 +120,29 @@ class CompositeObjectCellVetoEventHandler(CellVetoEventHandler, TwoCompositeObje
         """
         super().initialize(cells, cell_level, self._charge)
 
-    def send_out_state(self, target_cnode: Union[Node, None]) -> Sequence[Node]:
+    def send_event_time(self, in_state: Sequence[Node]) -> Tuple[Time, List[int]]:
+        """
+        Return the candidate event time together with the sampled target cell using the send_event_time method of the
+        abstract CellVetoEventHandler base class.
+
+        This method additionally stores the sorted leaf units in the composite point object that contains the active
+        leaf unit. This is used in the send_out_state method.
+
+        Parameters
+        ----------
+        in_state : Sequence[base.node.Node]
+            The branch of the independent active unit.
+
+        Returns
+        -------
+        (base.time.Time, [int])
+            The candidate event time, the sampled target cell.
+        """
+        return_value = super().send_event_time(in_state)
+        self._local_leaf_units = sorted(self._leaf_units, key=lambda unit: unit.identifier)
+        return return_value
+
+    def send_out_state(self, target_cnode: Union[Node, None]) -> Union[Sequence[Node], None]:
         """
         Return the out-state.
 
@@ -126,37 +161,54 @@ class CompositeObjectCellVetoEventHandler(CellVetoEventHandler, TwoCompositeObje
         Sequence[base.node.Node]
             The out-state.
         """
-        if target_cnode is None:
-            return self._state
-        else:
+        if target_cnode is not None:
             assert target_cnode.children
-            self._state.append(target_cnode)
+            target_leaf_cnodes = []
+            target_leaf_units = []
             for leaf_cnode in yield_leaf_nodes(target_cnode):
-                self._leaf_cnodes.append(leaf_cnode)
-                self._leaf_units.append(leaf_cnode.value)
-            self._construct_leaf_units_of_composite_objects()
-
+                target_leaf_cnodes.append(leaf_cnode)
+                target_leaf_units.append(leaf_cnode.value)
+            target_leaf_units = sorted(target_leaf_units, key=lambda unit: unit.identifier)
             factor_derivative = 0.0
-            target_composite_object_factor_derivatives = [0.0] * len(self._target_leaf_units)
-            for index, leaf_unit in enumerate(self._target_leaf_units):
-                pairwise_derivative = self._potential.derivative(
-                    self._active_leaf_unit.velocity,
-                    setting.periodic_boundaries.separation_vector(self._active_leaf_unit.position, leaf_unit.position),
-                    *self._potential_charges(self._active_leaf_unit, leaf_unit))
-                factor_derivative += pairwise_derivative
-                target_composite_object_factor_derivatives[index] -= pairwise_derivative
+            factor_gradient = [0.0 for _ in range(setting.dimension)]
+            target_composite_object_factor_gradients = [[0.0 for _ in range(setting.dimension)]
+                                                        for _ in range(len(target_leaf_units))]
+            for index, target_leaf_unit in enumerate(target_leaf_units):
+                pairwise_gradient = self._potential.gradient(
+                    setting.periodic_boundaries.separation_vector(
+                        self._active_leaf_unit.position, target_leaf_unit.position),
+                    *self._potential_charges(self._active_leaf_unit, target_leaf_unit))
+                for i, g in enumerate(pairwise_gradient):
+                    factor_gradient[i] += g
+                    target_composite_object_factor_gradients[index][i] -= g
+                factor_derivative += vectors.dot(self._active_leaf_unit.velocity, pairwise_gradient)
             event_rate = max(0.0, factor_derivative)
-            assert self._bounding_event_rate >= 0.0
             bounding_potential_warning(self.__class__.__name__, self._bounding_event_rate, event_rate)
-            if event_rate <= random.uniform(0.0, self._bounding_event_rate):
+            if random.uniform(0.0, self._bounding_event_rate) < event_rate:
+                self._state.append(target_cnode)
+                for target_leaf_cnode in target_leaf_cnodes:
+                    self._leaf_cnodes.append(target_leaf_cnode)
+                    self._leaf_units.append(target_leaf_cnode.value)
+                new_local_velocities, new_target_velocities = self._fill_lifting(
+                    self._local_leaf_units, target_leaf_units, factor_gradient,
+                    target_composite_object_factor_gradients)
+                new_active_identifier, change_velocities = self._lifting.get_active_identifier()
+                assert not (not change_velocities and new_active_identifier == self._active_leaf_unit.identifier)
+                time_stamp = self._active_leaf_unit.time_stamp
+                self._active_leaf_unit.time_stamp = None
+                self._register_velocity_change_leaf_cnode(self._leaf_cnodes[self._active_leaf_unit_index],
+                                                          [-c for c in self._active_leaf_unit.velocity])
+                new_active_cnode = [cnode for cnode in self._leaf_cnodes
+                                    if cnode.value.identifier == new_active_identifier]
+                assert len(new_active_cnode) == 1
+                new_active_cnode[0].value.time_stamp = time_stamp
+                if change_velocities:
+                    for index_1, local_unit in enumerate(self._local_leaf_units):
+                        local_unit.velocity = new_local_velocities[index_1]
+                    for index_2, target_unit in enumerate(target_leaf_units):
+                        target_unit.velocity = new_target_velocities[index_2]
+                self._register_velocity_change_leaf_cnode(new_active_cnode[0],
+                                                          new_active_cnode[0].value.velocity)
+                self._commit_non_leaf_velocity_changes()
                 return self._state
-
-            self._fill_lifting(self._local_leaf_units, self._target_leaf_units,
-                               factor_derivative, target_composite_object_factor_derivatives)
-
-            next_active_identifier = self._lifting.get_active_identifier()
-            next_active_cnode = [cnode for cnode in self._leaf_cnodes
-                                 if cnode.value.identifier == next_active_identifier]
-            assert len(next_active_cnode) == 1
-            self._exchange_velocity(self._leaf_cnodes[self._active_leaf_unit_index], next_active_cnode[0])
-            return self._state
+        return None

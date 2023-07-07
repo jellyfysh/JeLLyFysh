@@ -20,9 +20,11 @@
 # Computer Physics Communications, Volume 253, 107168 (2020), https://doi.org/10.1016/j.cpc.2020.107168.
 #
 """Module for the SingleProcessMediator class."""
+from copy import copy
 import logging
 from jellyfysh.activator import Activator
 from jellyfysh.base.logging import log_init_arguments
+from jellyfysh.event_handler import EventHandlerWithUnconfirmedEvents
 from jellyfysh.input_output_handler import InputOutputHandler
 from jellyfysh.mediator.mediator import Mediator
 from jellyfysh.state_handler import StateHandler
@@ -80,6 +82,11 @@ class SingleProcessMediator(Mediator):
         # Obtain nodes from input handler (via the input-output handler) and hands them over to the state handler
         state_handler.initialize(input_output_handler.read())
         super().__init__(input_output_handler, state_handler, scheduler, activator)
+        self._last_velocity = None
+        self._last_time_stamp = None
+        self._total_time = 0.0
+        self._total_distance = 0.0
+        self._number_events = {event_handler: 0 for event_handler in self._event_handlers_list}
 
     def run(self) -> None:
         """
@@ -92,6 +99,21 @@ class SingleProcessMediator(Mediator):
             # Extract active global state
             active_global_state = self._state_handler.extract_active_global_state()
 
+            if len(active_global_state) > 0:
+                assert len(active_global_state) == 1
+                assert len(active_global_state[0].children) == 1
+                current_velocity = active_global_state[0].children[0].value.velocity
+                current_time_stamp = active_global_state[0].children[0].value.time_stamp
+                if self._last_velocity is None:
+                    print(f"Initial time stamp: {current_time_stamp}")
+                    self._last_velocity = copy(current_velocity)
+                    self._last_time_stamp = copy(current_time_stamp)
+                else:
+                    time_difference = current_time_stamp - self._last_time_stamp
+                    self._total_distance += (sum(v * v for v in self._last_velocity) ** 0.5) * time_difference
+                    self._total_time += time_difference
+                    self._last_velocity = copy(current_velocity)
+                    self._last_time_stamp = copy(current_time_stamp)
             # Fetch event handlers to activate
             event_handlers_in_state_dictionary = self._activator.get_event_handlers_to_run(
                 active_global_state, self._event_handler_with_shortest_event_time)
@@ -127,20 +149,35 @@ class SingleProcessMediator(Mediator):
                     self._logger.debug("Pushed candidate event time to the scheduler: {0} ({1})"
                                        .format(event_time, event_handler.__class__.__name__))
 
-            # Request shortest time
-            self._event_handler_with_shortest_event_time = self._scheduler.get_succeeding_event()
-            if self._logger_enabled_for_debug:
-                self._logger.debug("Event handler which created the event with the shortest event time: {0}"
-                                   .format(self._event_handler_with_shortest_event_time.__class__.__name__))
+            while True:
+                # Request shortest time
+                self._event_handler_with_shortest_event_time = self._scheduler.get_succeeding_event()
+                if self._logger_enabled_for_debug:
+                    self._logger.debug("Event handler which created the event with the shortest event time: {0}"
+                                       .format(self._event_handler_with_shortest_event_time.__class__.__name__))
 
-            # Request out-state
-            if self._event_handler_with_shortest_event_time.number_send_out_state_arguments:
-                out_state = self._event_handler_with_shortest_event_time.send_out_state(
-                    *self._out_state_arguments_methods[self._event_handler_with_shortest_event_time](
-                        *self._out_state_arguments[self._event_handler_with_shortest_event_time]))
-            else:
-                out_state = self._event_handler_with_shortest_event_time.send_out_state()
+                # Request out-state
+                if self._event_handler_with_shortest_event_time.number_send_out_state_arguments:
+                    out_state = self._event_handler_with_shortest_event_time.send_out_state(
+                        *self._out_state_arguments_methods[self._event_handler_with_shortest_event_time](
+                            *self._out_state_arguments[self._event_handler_with_shortest_event_time]))
+                else:
+                    out_state = self._event_handler_with_shortest_event_time.send_out_state()
 
+                # Resend event time if event is unconfirmed (i.e., out_state is None)
+                if out_state is None:
+                    assert isinstance(self._event_handler_with_shortest_event_time, EventHandlerWithUnconfirmedEvents)
+                    returned = self._event_handler_with_shortest_event_time.resend_event_time()
+                    try:
+                        event_time, self._out_state_arguments[self._event_handler_with_shortest_event_time] = returned
+                    except TypeError:
+                        event_time, self._out_state_arguments[self._event_handler_with_shortest_event_time] = (returned,
+                                                                                                               [])
+                    self._scheduler.trash_event(self._event_handler_with_shortest_event_time)
+                    self._scheduler.push_event(event_time, self._event_handler_with_shortest_event_time)
+                else:
+                    break
+            self._number_events[self._event_handler_with_shortest_event_time] += 1
             # Commit out-state
             self._state_handler.insert_into_global_state(out_state)
 

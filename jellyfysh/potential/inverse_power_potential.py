@@ -21,23 +21,21 @@
 #
 """Module for the InversePowerPotential class."""
 import logging
-from typing import MutableSequence, Sequence
+from math import inf, sqrt
+from typing import Sequence
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base import vectors
-from .abstracts import StandardVelocityInvertiblePotential
+from .potential import InvertiblePotential
 
 
 # noinspection PyMethodOverriding
-class InversePowerPotential(StandardVelocityInvertiblePotential):
+class InversePowerPotential(InvertiblePotential):
     """
     This class implements the inverse power pair potential U_ij = c_i * c_j * k / |r_ij| ** p.
 
     k is a prefactor, c_i and c_j are the charges of the involved units, r_ij = r_j - r_i is the separation between
     the units and p > 0 is the power. This class assumes that i is the active unit.
-
-    This potential only allows for standard velocities (i.e., velocities parallel to one of the cartesian coordinate
-    axes going in the positive direction) of the active unit.
     """
 
     def __init__(self, power: float, prefactor: float) -> None:
@@ -56,6 +54,7 @@ class InversePowerPotential(StandardVelocityInvertiblePotential):
         base.exceptions.ConfigurationError
             If the power p is not larger than 0.
         """
+        self.init_arguments = lambda: {"power": power, "prefactor": prefactor}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            power=power, prefactor=prefactor)
         super().__init__(prefactor=prefactor)
@@ -66,18 +65,42 @@ class InversePowerPotential(StandardVelocityInvertiblePotential):
         self._two_over_power = 2.0 / self._power
         self._power_over_two = self._power / 2.0
         self._power_plus_two = self._power + 2
-        self._infinity = float('inf')
 
-    def standard_velocity_derivative(self, direction: int, separation: Sequence[float], charge_one: float,
-                                     charge_two: float) -> float:
+    def init_arguments(self):
+        raise NotImplementedError
+
+    def gradient(self, separation: Sequence[float], charge_one: float, charge_two: float) -> Sequence[float]:
         """
-        Return the space derivative of the potential along a positive direction parallel to one of the cartesian axes
-        for the given separation and charges.
+        Return the gradient of the potential evaluated at the given separation and for the given charges.
 
         Parameters
         ----------
-        direction : int
-            The direction of the derivative.
+        separation : Sequence[float]
+            The separation vector r_ij.
+        charge_one : float
+            The charge c_i.
+        charge_two : float
+            The charge c_j.
+
+        Returns
+        -------
+        Sequence[float]
+            The gradient with respect to the position r_i of the active unit.
+        """
+        prefactor = (self._power / vectors.norm(separation) ** self._power_plus_two * self._prefactor
+                     * charge_one * charge_two)
+        return [prefactor * s for s in separation]
+
+    def derivative(self, velocity: Sequence[float], separation: Sequence[float], charge_one: float,
+                   charge_two: float) -> float:
+        """
+        Return the directional time derivative along a given velocity vector of the active unit for the given
+        separation and charges.
+
+        Parameters
+        ----------
+        velocity : Sequence[float]
+            The velocity of the active unit along which the directional derivative is computed.
         separation : Sequence[float]
             The separation vector r_ij.
         charge_one : float
@@ -88,22 +111,28 @@ class InversePowerPotential(StandardVelocityInvertiblePotential):
         Returns
         -------
         float
-            The space derivative.
-        """
-        return (self._power * separation[direction] / vectors.norm(separation) ** self._power_plus_two
-                * self._prefactor * charge_one * charge_two)
+            The directional time derivative.
 
-    def standard_velocity_displacement(self, direction: int, separation: MutableSequence[float], charge_one: float,
-                                       charge_two: float, potential_change: float) -> float:
+        Raises
+        ------
+        AssertionError
+            If the velocity is zero.
         """
-        Return the required displacement in space of the active unit along the positive direction of motion parallel to
-        one of the cartesian axes where the cumulative event rate of the potential equals the given potential change.
+        assert any(entry != 0.0 for entry in velocity)
+        return (self._power / vectors.norm(separation) ** self._power_plus_two
+                * self._prefactor * charge_one * charge_two * vectors.dot(separation, velocity))
+
+    def displacement(self, velocity: Sequence[float], separation: Sequence[float], charge_one: float,
+                     charge_two: float, potential_change: float) -> float:
+        """
+        Return the required time displacement of the active unit along its velocity where the cumulative event rate of
+        the potential equals the given potential change.
 
         Parameters
         ----------
-        direction : int
-            The direction of motion of the active unit.
-        separation : MutableSequence[float]
+        velocity : Sequence[float]
+            The velocity of the active unit.
+        separation : Sequence[float]
             The separation vector r_ij.
         charge_one : float
             The charge c_i.
@@ -115,65 +144,82 @@ class InversePowerPotential(StandardVelocityInvertiblePotential):
         Returns
         -------
         float
-            The required displacement in space of the active unit along its direction of motion where the cumulative
-            event rate equals the sampled potential change.
-        """
-        charge_product = charge_one * charge_two
-        prefactor_product = self._prefactor * charge_product
-        return (self._displacement_repulsive(direction, charge_product, potential_change, separation)
-                if prefactor_product > 0
-                else self._displacement_attractive(direction, charge_product, potential_change, separation))
+            The required time displacement of the active unit along its velocity where the cumulative event rate equals
+            the sampled potential change.
 
-    def potential(self, charge_product: float, separation: Sequence[float]) -> float:
+        Raises
+        ------
+        AssertionError
+            If the velocity is zero.
         """
-        Return the potential for the given separation and charge product.
+        assert any(entry != 0.0 for entry in velocity)
+        prefactor_product = self._prefactor * charge_one * charge_two
+        return (self._displacement_repulsive(prefactor_product, velocity, separation, potential_change)
+                if prefactor_product > 0.0
+                else self._displacement_attractive(prefactor_product, velocity, separation, potential_change))
+
+    def potential(self, prefactor_product: float, norm_of_separation: float) -> float:
+        """
+        Return the potential for the given absolute value of the separation and prefactor product.
 
         Parameters
         ----------
-        charge_product : float
-            The charge product c_i * c_j.
-        separation : Sequence[float]
-            The separation vector r_ij.
+        prefactor_product : float
+            The prefactor product k * c_i * c_j.
+        norm_of_separation : float
+            The absolute value |r_ij| of the separation vector.
 
         Returns
         -------
         float
             The potential.
         """
-        return charge_product * self._prefactor / vectors.norm_sq(separation) ** self._power_over_two
+        return prefactor_product / norm_of_separation ** self._power
 
-    def _displacement_repulsive(self, direction: int, charge_product: float, potential_change: float,
-                                separation: Sequence[float]) -> float:
-        """Return the displacement in space for a repulsive potential between the two units."""
-        # Active unit is in front of target unit -> travel downhill
-        if separation[direction] <= 0.0:
-            return self._infinity
+    def _displacement_repulsive(self, prefactor_product: float, velocity: Sequence[float], separation: Sequence[float],
+                                potential_change: float) -> float:
+        """Return the time displacement displacement for a repulsive potential between the two units."""
+        separation_dot_velocity = vectors.dot(separation, velocity)
+        # Norm of separation becomes bigger -> travel downhill.
+        if separation_dot_velocity <= 0.0:
+            return inf
 
-        # Active unit behind of target unit -> travel uphill
-        maximum_potential = self.potential(charge_product,
-                                           vectors.copy_vector_with_replaced_component(separation, direction, 0.0))
-        current_potential = self.potential(charge_product, separation)
+        # Norm of separation becomes smaller -> travel uphill.
+        velocity_squared = vectors.norm_sq(velocity)
+        separation_squared = vectors.norm_sq(separation)
+        max_displacement = separation_dot_velocity / velocity_squared
+        minimum_separation_squared = separation_squared - max_displacement * max_displacement * velocity_squared
+        maximum_potential = self.potential(prefactor_product, sqrt(minimum_separation_squared))
+        current_potential = self.potential(prefactor_product, sqrt(separation_squared))
         if potential_change < maximum_potential - current_potential:
-            norm_sq_of_new_separation_vector = (
-                    (charge_product * self._prefactor / (current_potential + potential_change)) ** self._two_over_power)
-            return vectors.displacement_until_new_norm_sq_component_positive(
-                separation, norm_sq_of_new_separation_vector, direction)
-        return self._infinity
+            norm_sq_of_new_separation = (
+                    (prefactor_product / (current_potential + potential_change)) ** self._two_over_power)
+            sqrt_term = (separation_dot_velocity * separation_dot_velocity
+                         - velocity_squared * (separation_squared - norm_sq_of_new_separation))
+            return (separation_dot_velocity - sqrt(sqrt_term)) / velocity_squared
+        return inf
 
-    def _displacement_attractive(self, direction: int, charge_product: float, potential_change: float,
-                                 separation: MutableSequence[float]) -> float:
-        """Return the displacement in space for an attractive potential between the two units."""
-        current_displacement = 0.0
-        # Active unit behind of target unit -> travel downhill
-        if separation[direction] > 0.0:
-            current_displacement += separation[direction]
-            separation[direction] = 0.0
-        current_potential = self.potential(charge_product, separation)
-        # Active unit in front of target unit -> travel downhill
+    def _displacement_attractive(self, prefactor_product: float, velocity: Sequence[float], separation: Sequence[float],
+                                 potential_change: float) -> float:
+        """Return the time displacement for an attractive potential between the two units."""
+        velocity_squared = vectors.norm_sq(velocity)
+        separation_squared = vectors.norm_sq(separation)
+        separation_dot_velocity = vectors.dot(separation, velocity)
+        total_displacement = 0.0
+        # Norm of separation becomes smaller -> travel downhill.
+        if separation_dot_velocity > 0.0:
+            displacement = separation_dot_velocity / velocity_squared
+            separation_squared -= displacement * displacement * velocity_squared
+            separation_dot_velocity -= displacement * velocity_squared
+            total_displacement += displacement
+
+        # Norm of separation becomes bigger -> travel uphill.
+        current_potential = self.potential(prefactor_product, sqrt(separation_squared))
         if current_potential + potential_change >= 0.0:
-            return self._infinity
-        norm_sq_of_new_separation_vector = (
-                (charge_product * self._prefactor / (current_potential + potential_change)) ** self._two_over_power)
-        current_displacement += vectors.displacement_until_new_norm_sq_component_negative(
-            separation, norm_sq_of_new_separation_vector, direction)
-        return current_displacement
+            return inf
+        norm_sq_of_new_separation = (
+                (prefactor_product / (current_potential + potential_change)) ** self._two_over_power)
+        sqrt_term = (separation_dot_velocity * separation_dot_velocity
+                     - velocity_squared * (separation_squared - norm_sq_of_new_separation))
+        total_displacement += (separation_dot_velocity + sqrt(sqrt_term)) / velocity_squared
+        return total_displacement

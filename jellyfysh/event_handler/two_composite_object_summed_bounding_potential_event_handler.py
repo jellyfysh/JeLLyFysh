@@ -27,6 +27,7 @@ from jellyfysh.base.exceptions import ConfigurationError, bounding_potential_war
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.base.node import Node
 from jellyfysh.base.time import Time
+from jellyfysh.base import vectors
 from jellyfysh.lifting import Lifting
 from jellyfysh.potential import Potential, InvertiblePotential
 import jellyfysh.setting as setting
@@ -63,7 +64,7 @@ class TwoCompositeObjectSummedBoundingPotentialEventHandler(TwoCompositeObjectBo
     a run of JF.
     """
 
-    def __init__(self, potential: Potential, bounding_potential: InvertiblePotential,
+    def __init__(self, potential: Potential, bounding_potential: Sequence[InvertiblePotential],
                  lifting: Lifting, charge: str = None) -> None:
         """
         The constructor of the TwoCompositeObjectSummedBoundingPotentialEventHandler class.
@@ -93,28 +94,37 @@ class TwoCompositeObjectSummedBoundingPotentialEventHandler(TwoCompositeObjectBo
                            bounding_potential=bounding_potential.__class__.__name__,
                            lifting=lifting.__class__.__name__, charge=charge)
         super().__init__(charge=charge, potential=potential, lifting=lifting)
-        self._bounding_potential = bounding_potential
-        if self._bounding_potential.number_separation_arguments != 1:
-            raise ConfigurationError("The event handler {0} expects a potential and a bounding potential "
-                                     "which handles exactly one separation!".format(self.__class__.__name__))
-
+        self._bounding_potentials = bounding_potential
+        for bounding_potential in self._bounding_potentials:
+            if bounding_potential.number_separation_arguments != 1:
+                raise ConfigurationError("The event handler {0} expects (possibly several) bounding potentials "
+                                         "that handle exactly one separation! The bounding potential {1} expects "
+                                         "{2} separations.".format(self.__class__.__name__,
+                                                                   bounding_potential.__class__.__name__,
+                                                                   bounding_potential.number_separation_arguments))
         if charge is None:
-            self._bounding_potential_charges = (lambda unit_one, unit_two:
-                                                tuple(1.0 for _ in
-                                                      range(self._bounding_potential.number_charge_arguments)))
+            self._bounding_potentials_charges = [
+                lambda unit_one, unit_two: tuple(1.0 for _ in range(bounding_potential.number_charge_arguments))
+                for bounding_potential in self._bounding_potentials]
         else:
-            if self._bounding_potential.number_charge_arguments == 2:
-                self._bounding_potential_charges = lambda unit_one, unit_two: (unit_one.charge[charge],
-                                                                               unit_two.charge[charge])
-
+            if all(bounding_potential.number_charge_arguments == 2 for bounding_potential in self._bounding_potentials):
+                self._bounding_potentials_charges = [lambda unit_one, unit_two: (unit_one.charge[charge],
+                                                                                 unit_two.charge[charge])
+                                                     for _ in self._bounding_potentials]
             else:
                 raise ConfigurationError("The event handler {0} was initialized with a charge which is not None,"
-                                         " but its bounding potential {1}"
-                                         "expects not exactly 2 charges."
-                                         .format(self.__class__.__name__, self._bounding_potential.__class__.__name__))
-        if not self._bounding_potential.potential_change_required:
-            raise ConfigurationError("The event handler {0} expects a bounding potential that requires a potential "
-                                     "change in its displacement method.".format(self.__class__.__name__))
+                                         " but one of its bounding potentials {1}"
+                                         " expects not exactly 2 charges."
+                                         .format(self.__class__.__name__,
+                                                 [bounding_potential.__class__.__name__
+                                                  for bounding_potential in self._bounding_potentials]))
+        for bounding_potential in self._bounding_potentials:
+            if not bounding_potential.potential_change_required:
+                raise ConfigurationError("The event handler {0} expects (possibly several) bounding potentials that "
+                                         "require a potential change in their displacement methods. The bounding "
+                                         "potential {1} does not expect a potential change."
+                                         .format(self.__class__.__name__, bounding_potential.__class__.__name__))
+
 
     def send_event_time(self, in_state: Sequence[Node]) -> Time:
         """
@@ -144,11 +154,13 @@ class TwoCompositeObjectSummedBoundingPotentialEventHandler(TwoCompositeObjectBo
         self._construct_leaf_cnodes()
         self._extract_active_leaf_unit()
         self._construct_leaf_units_of_composite_objects()
-        time_displacement = min(self._bounding_potential.displacement(
+        time_displacement = min(bounding_potential.displacement(
             self._active_leaf_unit.velocity,
             setting.periodic_boundaries.separation_vector(self._active_leaf_unit.position, target_unit.position),
-            *self._bounding_potential_charges(self._active_leaf_unit, target_unit),
-            random.expovariate(setting.beta)) for target_unit in self._target_leaf_units)
+            *charges(self._active_leaf_unit, target_unit), random.expovariate(setting.beta))
+                                for target_unit in self._target_leaf_units
+                                for bounding_potential, charges in zip(self._bounding_potentials,
+                                                                       self._bounding_potentials_charges))
         self._event_time = self._active_leaf_unit.time_stamp + time_displacement
         self._time_slice_all_units_in_state()
         return self._event_time
@@ -174,29 +186,46 @@ class TwoCompositeObjectSummedBoundingPotentialEventHandler(TwoCompositeObjectBo
         """
         bounding_event_rate = 0.0
         factor_derivative = 0.0
-        target_composite_object_factor_derivatives = [0.0] * len(self._target_leaf_units)
+        factor_gradient = [0.0 for _ in range(setting.dimension)]
+        target_composite_object_factor_gradients = [[0.0 for _ in range(setting.dimension)]
+                                                    for _ in range(len(self._target_leaf_units))]
         for index, target_leaf_unit in enumerate(self._target_leaf_units):
             separation = setting.periodic_boundaries.separation_vector(self._active_leaf_unit.position,
                                                                        target_leaf_unit.position)
-            bounding_event_rate += max(
-                0.0, self._bounding_potential.derivative(
-                    self._active_leaf_unit.velocity, separation,
-                    *self._bounding_potential_charges(self._active_leaf_unit, target_leaf_unit)))
-            pairwise_derivative = self._potential.derivative(
-                self._active_leaf_unit.velocity, separation, *self._potential_charges(self._active_leaf_unit,
-                                                                                      target_leaf_unit))
+            bounding_event_rate += sum(
+                max(0.0, bounding_potential.derivative(
+                    self._active_leaf_unit.velocity, separation, *charges(self._active_leaf_unit, target_leaf_unit)))
+                for bounding_potential, charges in zip(self._bounding_potentials, self._bounding_potentials_charges))
+            pairwise_gradient = self._potential.gradient(
+                separation, *self._potential_charges(self._active_leaf_unit, target_leaf_unit))
+            pairwise_derivative = vectors.dot(self._active_leaf_unit.velocity, pairwise_gradient)
+            for i, g in enumerate(pairwise_gradient):
+                factor_gradient[i] += g
+                target_composite_object_factor_gradients[index][i] -= g
             factor_derivative += pairwise_derivative
-            target_composite_object_factor_derivatives[index] -= pairwise_derivative
         event_rate = max(0.0, factor_derivative)
         bounding_potential_warning(self.__class__.__name__, bounding_event_rate, event_rate)
         if event_rate <= random.uniform(0.0, bounding_event_rate):
             return self._state
+        old_velocity_norm = vectors.norm(self._active_leaf_unit.velocity)
+        factor_gradient_norm_squared = vectors.norm_sq(factor_gradient)
+        new_velocity = [-v + 2.0 * g * factor_derivative / factor_gradient_norm_squared
+                        for v, g in zip(self._active_leaf_unit.velocity, factor_gradient)]
+        new_velocity = vectors.normalize(new_velocity, new_norm=old_velocity_norm)
 
-        self._fill_lifting(self._local_leaf_units, self._target_leaf_units, event_rate,
-                           target_composite_object_factor_derivatives)
-
+        self._fill_lifting(self._local_leaf_units, self._target_leaf_units, factor_gradient,
+                           target_composite_object_factor_gradients, new_velocity)
         next_active_identifier = self._lifting.get_active_identifier()
         next_active_cnode = [cnode for cnode in self._leaf_cnodes if cnode.value.identifier == next_active_identifier]
         assert len(next_active_cnode) == 1
-        self._exchange_velocity(self._leaf_cnodes[self._active_leaf_unit_index], next_active_cnode[0])
+        self._register_velocity_change_leaf_cnode(self._leaf_cnodes[self._active_leaf_unit_index],
+                                                  [-component for component in
+                                                   self._active_leaf_unit.velocity])
+        self._register_velocity_change_leaf_cnode(next_active_cnode[0], new_velocity)
+        next_active_cnode[0].value.velocity = new_velocity
+        next_active_cnode[0].value.time_stamp = self._active_leaf_unit.time_stamp
+        self._active_leaf_unit.velocity = None
+        self._active_leaf_unit.time_stamp = None
+        self._commit_non_leaf_velocity_changes()
+
         return self._state

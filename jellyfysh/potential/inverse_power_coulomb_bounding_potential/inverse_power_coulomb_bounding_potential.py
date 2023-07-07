@@ -21,22 +21,22 @@
 #
 """Module for the InversePowerCoulombBoundingPotential."""
 import logging
-from typing import MutableSequence, Sequence
+from typing import Sequence
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
-from jellyfysh.base.vectors import permutation_3d
-from jellyfysh.potential.abstracts import StandardVelocityInvertiblePotential
+from jellyfysh.potential import InvertiblePotential
 from jellyfysh.setting import hypercubic_setting as setting
 # noinspection PyUnresolvedReferences
 from ._inverse_power_coulomb_bounding_potential import ffi, lib
 
 # Directly import C functions used in performance relevant parts of the code.
 _lib_derivative = lib.derivative
+_lib_gradient = lib.gradient
 _lib_displacement = lib.displacement
 
 
 # noinspection PyMethodOverriding
-class InversePowerCoulombBoundingPotential(StandardVelocityInvertiblePotential):
+class InversePowerCoulombBoundingPotential(InvertiblePotential):
     """
     This class implements the pair potential U_ij = c_i * c_j * k / |r_ij,0|.
 
@@ -46,13 +46,10 @@ class InversePowerCoulombBoundingPotential(StandardVelocityInvertiblePotential):
     Any constant k > 1.5836 is appropriate for a bounding potential in a hypercubic box. This class is only
     implemented for a hypercubic setting in three dimensions.
 
-    This potential only allows for standard velocities (i.e., velocities parallel to one of the cartesian coordinate
-    axes going in the positive direction) of the active unit.
-
-    The standard_velocity_derivative and standard_velocity_displacement functions use C code that is stored in the files
+    The derivative and displacement functions use C code that is stored in the files
     inverse_power_coulomb_bounding_potential.c and inverse_power_coulomb_bounding_potential.h. The cffi package is used
-    call the C code. The executable module inverse_power_coulomb_bounding_potential.py can be used to compile the C code
-    and to create the necessary files.
+    call the C code. The executable module inverse_power_coulomb_bounding_potential_build.py can be used to compile the
+    C code and to create the necessary files.
     """
 
     def __init__(self, prefactor: float = 1.5837) -> None:
@@ -71,6 +68,7 @@ class InversePowerCoulombBoundingPotential(StandardVelocityInvertiblePotential):
         base.exceptions.ConfigurationError
             If the dimension does not equal three.
         """
+        self.init_arguments = lambda: {"prefactor": prefactor}
         log_init_arguments(logging.getLogger(__name__).debug, self.__class__.__name__,
                            prefactor=prefactor)
         if not setting.initialized():
@@ -81,19 +79,48 @@ class InversePowerCoulombBoundingPotential(StandardVelocityInvertiblePotential):
                                      .format(self.__class__.__name__))
         super().__init__(prefactor=prefactor)
 
-    def standard_velocity_derivative(self, direction: int, separation: Sequence[float], charge_one: float,
-                                     charge_two: float) -> float:
-        """
-        Return the space derivative of the potential along a positive direction parallel to one of the cartesian axes
-        for the given separations and charges.
+    def init_arguments(self):
+        raise NotImplementedError
 
-        Note that the derivative function written in C always computes the space derivative in x direction. The
-        separation vector is therefore permuted before the function is called.
+    def gradient(self, separation: Sequence[float], charge_one: float, charge_two: float) -> Sequence[float]:
+        """
+        Return the gradient of the potential evaluated at the given separation and for the given charges.
 
         Parameters
         ----------
-        direction : int
-            The direction of the derivative.
+        separation : Sequence[float]
+            The separation vector r_ij,0.
+        charge_one : float
+            The charge c_i.
+        charge_two : float
+            The charge c_j.
+
+        Returns
+        -------
+        Sequence[float]
+            The gradient with respect to the position r_i of the active unit.
+
+        Raises
+        ------
+        AssertionError
+            If the given separation vector is not the shortest separation with periodic boundary conditions.
+        """
+        assert all(abs(s) <= setting.system_length_over_two for s in separation)
+        # The _lib_gradient C function returns a struct that contains a member called gradient of type double[3]. This
+        # array can be converted to a Python list by calling list on it.
+        gradient = _lib_gradient(self._prefactor * charge_one * charge_two, separation)
+        return [gradient.gx, gradient.gy, gradient.gz]
+
+    def derivative(self, velocity: Sequence[float], separation: Sequence[float], charge_one: float,
+                   charge_two: float) -> float:
+        """
+        Return the directional time derivative along a given velocity vector of the active unit for the given
+        separation and charges.
+
+        Parameters
+        ----------
+        velocity : Sequence[float]
+            The velocity of the active unit along which the directional derivative is computed.
         separation : Sequence[float]
             The separation vector r_ij.
         charge_one : float
@@ -104,24 +131,27 @@ class InversePowerCoulombBoundingPotential(StandardVelocityInvertiblePotential):
         Returns
         -------
         float
-            The space derivative.
-        """
-        return _lib_derivative(self._prefactor * charge_one * charge_two, *permutation_3d(separation, direction))
+            The directional time derivative.
 
-    def standard_velocity_displacement(self, direction: int, separation: MutableSequence[float], charge_one: float,
-                                       charge_two: float, potential_change: float) -> float:
+        Raises
+        ------
+        AssertionError
+            If the velocity is zero.
         """
-        Return the required displacement in space of the active unit along the positive direction of motion parallel to
-        one of the cartesian axes where the cumulative event rate of the potential equals the given potential change.
+        assert any(entry != 0.0 for entry in velocity)
+        return _lib_derivative(self._prefactor * charge_one * charge_two, velocity, separation)
 
-        Note that the displacement function written in C always computes the displacement in x direction. The separation
-        vector is therefore permuted before the function is called.
+    def displacement(self, velocity: Sequence[float], separation: Sequence[float], charge_one: float,
+                     charge_two: float, potential_change: float) -> float:
+        """
+        Return the required time displacement of the active unit along its velocity where the cumulative event rate of
+        the potential equals the given potential change.
 
         Parameters
         ----------
-        direction : int
-            The direction of motion of the active unit i.
-        separation : MutableSequence[float]
+        velocity : Sequence[float]
+            The velocity of the active unit.
+        separation : Sequence[float]
             The separation vector r_ij.
         charge_one : float
             The charge c_i.
@@ -133,8 +163,16 @@ class InversePowerCoulombBoundingPotential(StandardVelocityInvertiblePotential):
         Returns
         -------
         float
-            The required displacement in space of the active unit along its direction of motion where the cumulative
-            event rate equals the sampled potential change.
+            The required time displacement of the active unit along its velocity where the cumulative event rate equals
+            the sampled potential change.
+
+        Raises
+        ------
+        AssertionError
+            If the velocity is zero.
+            If the given separation vector is not the shortest separation with periodic boundary conditions.
         """
-        return _lib_displacement(self._prefactor * charge_one * charge_two, *permutation_3d(separation, direction),
-                                 potential_change, setting.system_length)
+        assert any(entry != 0.0 for entry in velocity)
+        assert all(abs(s) <= setting.system_length_over_two for s in separation)
+        return _lib_displacement(self._prefactor * charge_one * charge_two, velocity, separation, potential_change,
+                                 setting.system_length)

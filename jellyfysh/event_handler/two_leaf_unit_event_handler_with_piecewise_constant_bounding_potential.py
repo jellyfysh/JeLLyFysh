@@ -158,7 +158,8 @@ class TwoLeafUnitEventHandlerWithPiecewiseConstantBoundingPotential(EventHandler
                 bounding_potential_warning(self.__class__.__name__, self._bounding_event_rate, real_derivative)
                 if random.uniform(0, self._bounding_event_rate) < real_derivative:
                     self._exchange_velocity(self._leaf_cnodes[self._active_leaf_unit_index],
-                                            self._leaf_cnodes[self._active_leaf_unit_index ^ 1])
+                                            self._leaf_cnodes[self._active_leaf_unit_index ^ 1],
+                                            self._potential.gradient(separation, *charges))
         return self._state
 
     def _get_separations(self, positions: Sequence[Sequence[float]]) -> List[Sequence[float]]:

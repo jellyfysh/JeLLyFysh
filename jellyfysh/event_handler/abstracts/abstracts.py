@@ -25,6 +25,7 @@ from copy import copy
 from typing import Any, Sequence
 from jellyfysh.base.node import Node, yield_leaf_nodes
 from jellyfysh.base.unit import Unit
+import jellyfysh.base.vectors as vectors
 from jellyfysh.event_handler import EventHandler
 import jellyfysh.setting as setting
 
@@ -88,7 +89,7 @@ class BasicEventHandler(EventHandler, metaclass=ABCMeta):
         unit : base.unit.Unit
             The unit.
         """
-        if unit.velocity is not None:
+        if unit.time_stamp is not None:
             for d in range(setting.dimension):
                 unit.position[d] = setting.periodic_boundaries.correct_position_entry(
                     unit.position[d] + unit.velocity[d] * (self._event_time - unit.time_stamp), d)
@@ -214,9 +215,11 @@ class LeavesEventHandler(BasicEventHandler, metaclass=ABCMeta):
         unit = cnode.value
         if unit.identifier in self._non_leaf_velocity_changes.keys():
             if unit.velocity is None:
+                assert unit.time_stamp is None
                 unit.velocity = self._non_leaf_velocity_changes[unit.identifier].copy()
                 unit.time_stamp = copy(self._event_time)
             else:
+                assert unit.time_stamp is not None
                 self._time_slice_unit(cnode.value)
                 for d in range(setting.dimension):
                     unit.velocity[d] += self._non_leaf_velocity_changes[unit.identifier][d]
@@ -275,12 +278,13 @@ class SingleActiveLeafUnitEventHandler(LeavesEventHandler, metaclass=ABCMeta):
             If more than one leaf unit in the _leaf_units attribute is active.
         """
         assert self._leaf_units is not None
-        active_leaf_units = [(index, unit) for index, unit in enumerate(self._leaf_units) if unit.velocity is not None]
+        active_leaf_units = [(index, unit) for index, unit in enumerate(self._leaf_units)
+                             if unit.time_stamp is not None]
         assert len(active_leaf_units) == 1
         self._active_leaf_unit_index = active_leaf_units[0][0]
         self._active_leaf_unit = self._leaf_units[self._active_leaf_unit_index]
 
-    def _exchange_velocity(self, cnode_with_active_unit: Node, target_cnode: Node) -> None:
+    def _exchange_velocity(self, cnode_with_active_unit: Node, target_cnode: Node, gradient: Sequence[float]) -> None:
         """
         Transfer the velocity from the cnode that contains the independent active leaf unit to the target cnode that
         contains a non-active leaf unit.
@@ -307,16 +311,33 @@ class SingleActiveLeafUnitEventHandler(LeavesEventHandler, metaclass=ABCMeta):
         """
         active_unit = cnode_with_active_unit.value
         target_unit = target_cnode.value
-        assert active_unit.velocity is not None
+        assert active_unit.time_stamp is not None
         assert active_unit in self._leaf_units
-        assert target_unit.velocity is None
+        assert target_unit.time_stamp is None
         assert target_unit in self._leaf_units
+        assert vectors.dot(gradient, active_unit.velocity) > 0.0
+        gradient_norm_squared = vectors.norm_sq(gradient)
+        velocity_difference_dot_gradient = sum((target_unit.velocity[d] - active_unit.velocity[d]) * gradient[d]
+                                               for d in range(setting.dimension))
+        assert "mass" in active_unit.charge
+        assert "mass" in target_unit.charge
+        active_mass = active_unit.charge["mass"]
+        target_mass = target_unit.charge["mass"]
+        mass_sum = active_mass + target_mass
+        velocity_change_active = [
+            2.0 * target_mass / mass_sum * velocity_difference_dot_gradient * g / gradient_norm_squared
+            for g in gradient]
+        velocity_change_target = [
+            -2.0 * active_mass / mass_sum * velocity_difference_dot_gradient * g / gradient_norm_squared
+            for g in gradient]
+        new_velocity_target = [v + c for v, c in zip(target_unit.velocity, velocity_change_target)]
+        # Only register the change of the real velocity (not the hypothetical one).
         self._register_velocity_change_leaf_cnode(cnode_with_active_unit,
                                                   [-component for component in active_unit.velocity])
-        self._register_velocity_change_leaf_cnode(target_cnode, active_unit.velocity)
-        target_unit.velocity = active_unit.velocity
+        self._register_velocity_change_leaf_cnode(target_cnode, new_velocity_target)
+        target_unit.velocity = [v + c for v, c in zip(target_unit.velocity, velocity_change_target)]
         target_unit.time_stamp = active_unit.time_stamp
-        active_unit.velocity = None
+        active_unit.velocity = [v + c for v, c in zip(active_unit.velocity, velocity_change_active)]
         active_unit.time_stamp = None
         self._commit_non_leaf_velocity_changes()
 
