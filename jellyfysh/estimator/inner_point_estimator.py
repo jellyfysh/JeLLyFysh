@@ -25,6 +25,7 @@ from typing import List, Sequence
 from jellyfysh.base.exceptions import ConfigurationError
 from jellyfysh.base.logging import log_init_arguments
 from jellyfysh.potential import Potential
+import jellyfysh.setting as setting
 from .estimator import Estimator
 
 
@@ -136,17 +137,19 @@ class InnerPointEstimator(Estimator):
         super().derivative_bound(lower_corner, upper_corner, direction, calculate_lower_bound)
         upper_bound = -float('inf')
         lower_bound = float('inf')
-        for ix in range(self._points_per_side + 1):
-            px = lower_corner[0] + (upper_corner[0] - lower_corner[0]) * ix / self._points_per_side
-            for iy in range(self._points_per_side + 1):
-                py = lower_corner[1] + (upper_corner[1] - lower_corner[1]) * iy / self._points_per_side
-                for iz in range(self._points_per_side + 1):
-                    pz = lower_corner[2] + (upper_corner[2] - lower_corner[2]) * iz / self._points_per_side
-                    separation = [px, py, pz]
-                    self._correct_separation(separation)
-                    derivative = self._potential_derivative(direction, separation, *self._charges)
-                    upper_bound = max(upper_bound, derivative)
-                    lower_bound = min(lower_bound, derivative)
+        for i in range((self._points_per_side + 1) ** setting.dimension):
+            vector = [0] * setting.dimension
+            remainder = i
+            for k in range(1, setting.dimension):
+                vector[k - 1] = int(remainder / ((self._points_per_side + 1) ** (setting.dimension - k)))
+                remainder = remainder % ((self._points_per_side + 1) ** (setting.dimension - k))
+            vector[-1] = remainder
+            separation = [lower_corner[j] + (upper_corner[j] - lower_corner[j]) * vector[j] / self._points_per_side
+                          for j in range(setting.dimension)]
+            self._correct_separation(separation)
+            derivative = self._potential_derivative(direction, separation, *self._charges)
+            upper_bound = max(upper_bound, derivative)
+            lower_bound = min(lower_bound, derivative)
 
         if upper_bound > 0.0:
             upper_bound *= self._prefactor
